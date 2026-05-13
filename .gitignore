@@ -1,0 +1,41 @@
+# --- Node.js / Frontend ---
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# --- Rust / Backend ---
+target/
+**/*.rs.bk
+# Note: Cargo.lock is intentionally committed for application binaries.
+
+# --- Environment / Secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# --- Application-specific ---
+# Local image storage (food photos uploaded by the user)
+uploads/
+# Local PostgreSQL data directory (if running outside Docker volume)
+pg-data/
+# Logs
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editors / IDEs ---
+.idea/
+*.swp
+*.swo
+# Per-user VSCode settings (do not share); workspace-shared settings can be force-added.
+.vscode/settings.json
+
+# --- Caches ---
+.cache/
+.eslintcache
