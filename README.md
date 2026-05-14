@@ -721,79 +721,123 @@ mkdir -p /var/lib/taberu/backups
 
 ## デプロイメント戦略
 
-### 自宅サーバー環境要件
+### 本番環境での起動（Docker Compose）
+
+`docker-compose.prod.yml` でバックエンド・フロントエンド・PostgreSQL の 3 サービスをまとめて起動します。
+
+#### 構成概要
+
+```
+[ブラウザ] → [frontend コンテナ: nginx :80]
+                    ├─ /api/      → [backend コンテナ: Axum :8000]
+                    └─ /uploads/  → [backend コンテナ: Axum :8000]
+                                         │
+                                   [postgres コンテナ :5432]
+```
+
+#### ステップ 1：sqlx クエリキャッシュの生成（初回のみ）
+
+バックエンドは `sqlx::query!` マクロによるコンパイル時 SQL 検証を使っているため、Docker ビルド前に `.sqlx/` ディレクトリの生成が必要です。
+
+```bash
+# 開発用 DB を起動してスキーマ適用
+docker compose up -d postgres
+docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
+
+# sqlx-cli をインストール（Rust のインストール後）
+cargo install sqlx-cli --no-default-features --features postgres
+
+# クエリキャッシュを生成（backend/ ディレクトリで実行）
+cd backend
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db cargo sqlx prepare
+cd ..
+```
+
+生成された `.sqlx/` ディレクトリをコミットしておきます。
+
+```bash
+git add backend/.sqlx
+git commit -m "chore: add sqlx query cache for offline build"
+```
+
+#### ステップ 2：環境変数の設定
+
+プロジェクトルートに `.env` ファイルを作成します（git 管理外）。
+
+```env
+POSTGRES_PASSWORD=強いパスワードに変える
+CLAUDE_API_KEY=sk-ant-xxxx
+# POSTGRES_USER=postgres  # デフォルト値なので省略可
+# RUST_LOG=info           # デフォルト値なので省略可
+# PORT=80                 # デフォルト値なので省略可
+```
+
+#### ステップ 3：イメージのビルドと起動
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+#### ステップ 4：スキーマ適用（初回のみ）
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres \
+  psql -U postgres -d taberu_db < migrations/001_initial.sql
+```
+
+#### 確認
+
+```bash
+# サービスの状態確認
+docker compose -f docker-compose.prod.yml ps
+
+# ブラウザで http://localhost を開く（または設定したポート）
+curl http://localhost/api/records
+```
+
+#### 更新デプロイ
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+#### 停止・データ削除
+
+```bash
+# サービス停止（データは保持）
+docker compose -f docker-compose.prod.yml down
+
+# データも含めて完全リセット
+docker compose -f docker-compose.prod.yml down -v
+```
+
+---
+
+### バックアップ
+
+画像ファイルと DB は Docker ボリュームで管理されています。
+
+```bash
+# 画像ファイルのバックアップ（uploads ボリューム）
+docker run --rm \
+  -v taberu_uploads:/data \
+  -v $(pwd)/backups:/backup \
+  alpine tar -czf /backup/uploads_$(date +%Y%m%d).tar.gz /data
+
+# DB ダンプ
+docker compose -f docker-compose.prod.yml exec postgres \
+  pg_dump -U postgres taberu_db > backups/db_$(date +%Y%m%d).sql
+```
+
+---
+
+### 自宅サーバー環境要件（Docker 利用時）
 
 - **OS**: Ubuntu 22.04 LTS
-- **Rust**: `rustup` でインストール
-- **PostgreSQL**: 14+
-- **Systemd**: サービス管理
-- **Nginx**: リバースプロキシ
-
-### デプロイメント手順（概要）
-
-#### 1. サーバーへのプッシュ
-```bash
-git push origin main
-ssh user@home-server "cd /opt/taberu && git pull"
-```
-
-#### 2. ビルド
-```bash
-cd /opt/taberu/backend
-cargo build --release
-```
-
-#### 3. Systemd サービス登録
-```ini
-# /etc/systemd/system/taberu-api.service
-[Unit]
-Description=Taberu API Server
-After=network.target
-
-[Service]
-Type=simple
-User=taberu
-ExecStart=/opt/taberu/backend/target/release/taberu_api
-Environment=DATABASE_URL=postgres://taberu_user:password@localhost/taberu_db
-Environment=CLAUDE_API_KEY=sk-xxx-xxx
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### 4. Nginx リバースプロキシ設定
-```nginx
-upstream taberu_api {
-    server 127.0.0.1:8000;
-}
-
-server {
-    listen 80;
-    server_name home.example.com;
-
-    location /api/ {
-        proxy_pass http://taberu_api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    location / {
-        root /opt/taberu/frontend/dist;
-        try_files $uri /index.html;
-    }
-}
-```
-
-#### 5. バックアップ設定
-```bash
-# /opt/taberu/backup.sh
-#!/bin/bash
-tar -czf /var/lib/taberu/backups/uploads_$(date +%Y%m%d).tar.gz /var/lib/taberu/uploads/
-
-# crontab -e
-0 1 * * * /opt/taberu/backup.sh
-```
+- **Docker**: 24.0+、Docker Compose V2
+- **ポート**: 80 番（または `PORT` 環境変数で変更可）
+- SSL（HTTPS）は Nginx リバースプロキシや Caddy を前段に置いて対応
 
 ### セキュリティ考慮事項
 
