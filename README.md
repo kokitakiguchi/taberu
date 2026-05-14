@@ -532,90 +532,140 @@ App.tsx
 
 ### 環境要件
 
-- **OS**: macOS / Linux（Windows WSL2）
+- **OS**: macOS / Linux（Windows WSL2）、または Dev Container 環境
 - **Rust**: 1.70+（`rustup` で管理）
-- **Node.js**: 18+（npm/yarn）
-- **PostgreSQL**: 14+
+- **Node.js**: 18+（npm）
+- **Docker / Docker Compose**: PostgreSQL 起動用
 - **Git**: バージョン管理用
 
-### ローカル開発セットアップ手順
+### クイックスタート（Dev Container 環境）
 
-#### 1. リポジトリクローン
+本リポジトリは `.devcontainer/` を含むため、VS Code + Dev Containers 拡張機能があれば、Rust 以外の環境はコンテナ側で自動セットアップされます。以下は **コンテナ起動後** の手順です。
+
+#### ステップ 1：Rust のインストール
+
+コンテナ内では Rust がプリインストールされていないため、最初に一度だけ実行します。
+
 ```bash
-git clone <repo-url>
-cd taberu
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
 ```
 
-#### 2. PostgreSQL セットアップ
+インストール確認：
 
-**オプションA: Docker Compose（推奨）**
 ```bash
-docker-compose up -d postgres
+rustc --version   # rustc 1.XX.X が表示されれば OK
+cargo --version
 ```
 
-**オプションB: ローカルインストール**
-```bash
-# macOS (Homebrew)
-brew install postgresql
-brew services start postgresql
+#### ステップ 2：環境変数ファイルの作成
 
-# スキーマ初期化
-psql postgres -c "CREATE DATABASE taberu_db;"
-psql taberu_db < 001_init_schema.sql
+```bash
+cp backend/.env.example backend/.env
 ```
 
-#### 3. Rust バックエンド セットアップ
+`backend/.env` を編集して最低限以下を設定します。
+
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db
+CLAUDE_API_KEY=sk-ant-xxxx   # Anthropic API キー（実機能を使う場合）
+UPLOAD_DIR=./uploads          # ローカル開発用の相対パス
+RUST_LOG=debug
+CLAUDE_MOCK=1                 # Claude API を使わずモックで動かす場合は 1
+```
+
+> **CLAUDE_MOCK=1** を設定しておくと、Claude Vision API を呼ばずに固定のダミー JSON を返します。API キーがなくても開発を進められます。
+
+フロントエンドの環境変数はすでに用意されています（`frontend/.env`）。
+
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+#### ステップ 3：PostgreSQL の起動
+
+Docker Compose でデータベースコンテナを起動します。
+
+```bash
+docker compose up -d postgres
+```
+
+起動確認（接続できれば OK）：
+
+```bash
+docker compose exec postgres psql -U postgres -d taberu_db -c "\dt"
+```
+
+#### ステップ 4：データベーススキーマの適用
+
+マイグレーション SQL を直接適用します。
+
+```bash
+docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
+```
+
+users テーブルのシードデータ（id=1 のユーザー）も同ファイルに含まれています。
+
+#### ステップ 5：バックエンドのビルドと起動
+
 ```bash
 cd backend
-cargo build
-cargo run  # http://localhost:8000 で起動
+cargo build          # 初回は依存クレートのダウンロードで数分かかります
+cargo run            # http://localhost:8000 で起動
 ```
 
-**Cargo.toml 主要依存関係**：
-```toml
-[dependencies]
-axum = "0.7"
-tokio = { version = "1", features = ["full"] }
-sqlx = { version = "0.7", features = ["postgres", "runtime-tokio"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-tracing = "0.1"
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.11", features = ["json"] }
+起動確認：
+
+```bash
+curl http://localhost:8000/api/records
+# {"data":[],"total_calories":0.0} が返れば OK
 ```
 
-#### 4. React フロントエンド セットアップ
+#### ステップ 6：フロントエンドの起動
+
+別ターミナルで実行します。
+
 ```bash
 cd frontend
-npm install
-npm run dev  # http://localhost:5173 で起動（Vite）
+npm run dev          # http://localhost:5173 で起動（Vite）
 ```
 
-**package.json 主要依存関係**：
-```json
-{
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.0.0",
-    "axios": "^1.6.0",
-    "recharts": "^2.10.0",
-    "react-dropzone": "^14.2.0"
-  }
-}
+ブラウザで `http://localhost:5173` を開くとダッシュボードが表示されます。
+
+---
+
+### 全サービスの停止
+
+```bash
+# フロントエンド・バックエンドは Ctrl+C で停止
+# PostgreSQL コンテナの停止
+docker compose down
+
+# データも含めてリセットしたい場合
+docker compose down -v
 ```
 
-#### 5. 環境変数設定
+---
+
+### ローカル開発セットアップ（Dev Container なし）
+
+Dev Container を使わない場合の環境要件と手順です。
+
+**追加で必要なもの**：Rust（`rustup`）、Node.js 18+、Docker
+
+手順はクイックスタートと同じですが、ステップ 1 のコンテナ前提の説明は読み替えてください。
+
+---
+
+### 環境変数リファレンス
 
 **backend/.env**：
 ```env
-DATABASE_URL=postgres://localhost/taberu_db
-CLAUDE_API_KEY=sk-xxx-xxx
-UPLOAD_DIR=/var/lib/taberu/uploads
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db
+CLAUDE_API_KEY=sk-ant-xxxx
+UPLOAD_DIR=./uploads
 RUST_LOG=debug
+CLAUDE_MOCK=1   # 1 でモック動作（開発時推奨）
 ```
 
 **frontend/.env**：
@@ -623,7 +673,10 @@ RUST_LOG=debug
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-#### 6. ストレージディレクトリ作成
+#### ストレージディレクトリ（本番環境）
+
+本番サーバーでは以下のディレクトリを事前に作成します。開発時は `UPLOAD_DIR=./uploads` で自動作成されます。
+
 ```bash
 mkdir -p /var/lib/taberu/uploads
 mkdir -p /var/lib/taberu/backups
@@ -816,8 +869,9 @@ tar -czf /var/lib/taberu/backups/uploads_$(date +%Y%m%d).tar.gz /var/lib/taberu/
 ---
 
 **最終更新**: 2026-05-14  
-**プロジェクトステータス**: 計画・設計フェーズ（コード実装未開始、Git 初期化済み）  
+**プロジェクトステータス**: MVP スキャフォールド完了（Rust コンパイル・DB 動作確認が次のステップ）  
 **ドキュメント変更履歴**:
+- 2026-05-14：MVP スキャフォールド完了（backend/, frontend/, migrations/, docker-compose.yml）。開発セットアップセクションをクイックスタート形式に刷新し、Dev Container 環境の起動手順を追記。
 - 2026-05-14：学習トラック（コード理解 + MCP / Claude Skills）の方針を追記。AI分析仕様に段階的精度向上ステップを追加し、「MCP & Claude Skills 活用方針」セクションを新設。
 - 2026-05-14：Claude Code 向けの運用ガイドを `CLAUDE.md` に分離し、領域別の詳細ルールを `.claude/rules/` 配下に切り出し。本ファイルは人間向け仕様書として「正本」の位置づけに。
 - 2026-05-14：Git リポジトリ初期化（`main` ブランチ）と `.gitignore` 整備。`.devcontainer/` 配下はユーザー管理領域として運用ルールを明文化。
