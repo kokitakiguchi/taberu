@@ -532,21 +532,43 @@ App.tsx
 
 ### 環境要件
 
-- **OS**: macOS / Linux（Windows WSL2）、または Dev Container 環境
-- **Rust**: 1.70+（`rustup` で管理）
-- **Node.js**: 18+（npm）
-- **Docker / Docker Compose**: PostgreSQL 起動用
-- **Git**: バージョン管理用
+- **ホスト OS**: macOS / Linux（Windows WSL2）
+- **ホストに必要なもの**:
+  - Docker Desktop / Docker Engine + Docker Compose（**Postgres コンテナと Dev Container の両方をホスト側の Docker で起動する**）
+  - VS Code + Dev Containers 拡張機能
+  - Git
+- **Dev Container 内で使うもの**（コンテナに含まれる / 後述の手順で入れる）:
+  - Rust 1.70+（後述のステップ 2 で `rustup` 経由でインストール）
+  - Node.js 18+（Dev Container イメージにプリインストール）
+
+> **重要**：本リポジトリの `.devcontainer/` には Docker daemon 連携（docker-in-docker / docker-outside-of-docker）は組み込まれていません。そのため **Postgres コンテナはホスト OS 側の Docker で起動** し、Dev Container 内のアプリからは `host.docker.internal` 経由で接続します。`docker compose ...` 系のコマンドは **常にホスト側のターミナルで実行** してください。
 
 ### クイックスタート（Dev Container 環境）
 
-本リポジトリは `.devcontainer/` を含むため、VS Code + Dev Containers 拡張機能があれば、Rust 以外の環境はコンテナ側で自動セットアップされます。以下は **コンテナ起動後** の手順です。
+#### ステップ 1：PostgreSQL の起動（ホスト側で実行）
 
-#### ステップ 1：Rust のインストール
+Dev Container に入る前に、まずホスト OS のターミナルで Postgres コンテナを起動します。
+
+```bash
+# ホスト OS のシェルで実行
+docker compose up -d postgres
+```
+
+起動確認（接続できれば OK）：
+
+```bash
+# ホスト OS のシェルで実行
+docker compose exec postgres psql -U postgres -d taberu_db -c "\dt"
+```
+
+#### ステップ 2：Dev Container を開いて Rust をインストール
+
+VS Code でリポジトリを開き、コマンドパレットから「Dev Containers: Reopen in Container」を実行します。
 
 コンテナ内では Rust がプリインストールされていないため、最初に一度だけ実行します。
 
 ```bash
+# Dev Container 内のシェルで実行
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source "$HOME/.cargo/env"
 ```
@@ -554,20 +576,23 @@ source "$HOME/.cargo/env"
 インストール確認：
 
 ```bash
+# Dev Container 内のシェルで実行
 rustc --version   # rustc 1.XX.X が表示されれば OK
 cargo --version
+node --version    # v18 以上
 ```
 
-#### ステップ 2：環境変数ファイルの作成
+#### ステップ 3：環境変数ファイルの作成（Dev Container 内）
 
 ```bash
+# Dev Container 内のシェルで実行
 cp backend/.env.example backend/.env
 ```
 
-`backend/.env` を編集して最低限以下を設定します。
+`backend/.env` を編集して最低限以下を設定します。**`DATABASE_URL` のホスト名は `localhost` ではなく `host.docker.internal` を指定する** 点に注意してください（Dev Container 内からホスト側で動いている Postgres に接続するため）。
 
 ```env
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db
+DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/taberu_db
 CLAUDE_API_KEY=sk-ant-xxxx   # Anthropic API キー（実機能を使う場合）
 UPLOAD_DIR=./uploads          # ローカル開発用の相対パス
 RUST_LOG=debug
@@ -576,84 +601,87 @@ CLAUDE_MOCK=1                 # Claude API を使わずモックで動かす場�
 
 > **CLAUDE_MOCK=1** を設定しておくと、Claude Vision API を呼ばずに固定のダミー JSON を返します。API キーがなくても開発を進められます。
 
+> **Linux ホストの場合**：`host.docker.internal` がデフォルトでは解決されません。`.devcontainer/devcontainer.json` の `runArgs` に `"--add-host=host.docker.internal:host-gateway"` を追加してから Dev Container を再ビルドしてください（`.devcontainer/` 配下はユーザー管理領域なので、変更前に内容を確認のこと）。macOS / Windows の Docker Desktop では追加設定不要です。
+
 フロントエンドの環境変数はすでに用意されています（`frontend/.env`）。
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
-#### ステップ 3：PostgreSQL の起動
+> ブラウザは **ホスト側で動く** ため、`localhost:8000` はホストから見たバックエンドポートを指します。Dev Container 内の 8000 番ポートが VS Code によってホストにフォワードされていることを確認してください（VS Code の「ポート」タブで確認可能）。
 
-Docker Compose でデータベースコンテナを起動します。
+#### ステップ 4：データベーススキーマの適用（ホスト側で実行）
 
-```bash
-docker compose up -d postgres
-```
-
-起動確認（接続できれば OK）：
+マイグレーション SQL を直接適用します。`docker compose` を使うので **ホスト側のターミナル** で実行します。
 
 ```bash
-docker compose exec postgres psql -U postgres -d taberu_db -c "\dt"
-```
-
-#### ステップ 4：データベーススキーマの適用
-
-マイグレーション SQL を直接適用します。
-
-```bash
+# ホスト OS のシェルで実行
 docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
 ```
 
 users テーブルのシードデータ（id=1 のユーザー）も同ファイルに含まれています。
 
-#### ステップ 5：バックエンドのビルドと起動
+#### ステップ 5：バックエンドのビルドと起動（Dev Container 内）
 
 ```bash
+# Dev Container 内のシェルで実行
 cd backend
 cargo build          # 初回は依存クレートのダウンロードで数分かかります
 cargo run            # http://localhost:8000 で起動
 ```
 
-起動確認：
+起動確認（Dev Container 内、またはホストのブラウザどちらからでも）：
 
 ```bash
 curl http://localhost:8000/api/records
 # {"data":[],"total_calories":0.0} が返れば OK
 ```
 
-#### ステップ 6：フロントエンドの起動
+#### ステップ 6：フロントエンドの起動（Dev Container 内）
 
-別ターミナルで実行します。
+別ターミナル（Dev Container 内）で実行します。
 
 ```bash
+# Dev Container 内のシェルで実行
 cd frontend
+npm install          # 初回のみ
 npm run dev          # http://localhost:5173 で起動（Vite）
 ```
 
-ブラウザで `http://localhost:5173` を開くとダッシュボードが表示されます。
+ホスト側のブラウザで `http://localhost:5173` を開くとダッシュボードが表示されます（5173 番ポートも VS Code 経由でホストにフォワードされます）。
 
 ---
 
 ### 全サービスの停止
 
 ```bash
-# フロントエンド・バックエンドは Ctrl+C で停止
-# PostgreSQL コンテナの停止
+# Dev Container 内：フロントエンド・バックエンドは Ctrl+C で停止
+# PostgreSQL コンテナの停止（ホスト OS のシェルで実行）
 docker compose down
 
-# データも含めてリセットしたい場合
+# データも含めてリセットしたい場合（ホスト OS のシェルで実行）
 docker compose down -v
 ```
 
 ---
 
-### ローカル開発セットアップ（Dev Container なし）
+### ローカル開発セットアップ（Dev Container を使わない場合）
 
-Dev Container を使わない場合の環境要件と手順です。
+ホスト OS に Rust / Node.js を直接入れて開発する場合の手順です。
 
-**追加で必要なもの**：Rust（`rustup`）、Node.js 18+、Docker
+**追加で必要なもの**：Rust（`rustup`）、Node.js 18+
 
-手順はクイックスタートと同じですが、ステップ 1 のコンテナ前提の説明は読み替えてください。
+クイックスタートとの差分は以下だけです：
+
+- ステップ 2（Dev Container 起動 + Rust インストール）の代わりに、ホスト OS に `rustup` / Node.js を直接インストール
+- ステップ 3 の `DATABASE_URL` のホスト名は `host.docker.internal` ではなく **`localhost`** を使う
+
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db
+```
+
+ステップ 1・4 の `docker compose ...` コマンド、ステップ 5・6 の `cargo run` / `npm run dev` はそのままホスト OS で実行します。
 
 ---
 
@@ -916,6 +944,7 @@ docker compose -f docker-compose.prod.yml exec postgres \
 **プロジェクトステータス**: MVP スキャフォールド完了（Rust コンパイル・DB 動作確認が次のステップ）  
 **ドキュメント変更履歴**:
 - 2026-05-14：MVP スキャフォールド完了（backend/, frontend/, migrations/, docker-compose.yml）。開発セットアップセクションをクイックスタート形式に刷新し、Dev Container 環境の起動手順を追記。
+- 2026-05-15：Dev Container クイックスタートを修正。`.devcontainer/` に Docker daemon 連携 feature が無いため、Postgres コンテナはホスト側で起動し、Dev Container 内からは `host.docker.internal` 経由で接続する手順に書き換え。
 - 2026-05-14：学習トラック（コード理解 + MCP / Claude Skills）の方針を追記。AI分析仕様に段階的精度向上ステップを追加し、「MCP & Claude Skills 活用方針」セクションを新設。
 - 2026-05-14：Claude Code 向けの運用ガイドを `CLAUDE.md` に分離し、領域別の詳細ルールを `.claude/rules/` 配下に切り出し。本ファイルは人間向け仕様書として「正本」の位置づけに。
 - 2026-05-14：Git リポジトリ初期化（`main` ブランチ）と `.gitignore` 整備。`.devcontainer/` 配下はユーザー管理領域として運用ルールを明文化。
