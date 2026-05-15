@@ -15,8 +15,8 @@ pub struct FoodRecord {
     pub components: Option<Value>,
     pub allergens: Option<Value>,
     pub notes: Option<String>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Deserialize)]
