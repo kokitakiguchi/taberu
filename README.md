@@ -35,6 +35,7 @@
 docker compose up -d postgres
 docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
 docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/002_add_entry_mode.sql
+docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/003_change_decimal_to_float.sql
 ```
 
 ### 2. 環境変数を設定
