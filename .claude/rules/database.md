@@ -13,6 +13,15 @@
 - 修正が必要なら新しいマイグレーションで上書きする
 - `sqlx migrate add ...` で雛形生成すると番号管理が楽
 
+## 適用済みスキーマ変更の記録
+
+| マイグレーション | 内容 | 状態 |
+|----------------|------|------|
+| `001_initial.sql` | 初期スキーマ（users, food_records, allergen_names） | 適用済み |
+| `002_add_entry_mode.sql` | `food_records` に `entry_mode VARCHAR(20) DEFAULT 'dish_photo'` 追加 | **未作成・未適用** |
+
+`002_add_entry_mode.sql` は次の実装タスクで作成する（`docs/次やること.md` 参照）。既存レコードには `DEFAULT 'dish_photo'` が自動適用される。
+
 ## カラム追加・変更時のチェック
 
 1. 既存データの後方互換を確認（NULL 許容 or DEFAULT 必須）

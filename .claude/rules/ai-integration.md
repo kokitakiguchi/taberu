@@ -6,16 +6,45 @@
 - バックエンド（Rust）から `reqwest` で Anthropic API を直接呼ぶ
 - API キーは環境変数 `CLAUDE_API_KEY`。**ハードコード・ログ出力禁止**
 
+## 入力モード別の呼び出し判定
+
+`entry_mode` に応じて処理を切り替える。
+
+| entry_mode         | Claude 呼び出し | 画像処理 | プロンプト種別 |
+|--------------------|---------------|---------|-------------|
+| `dish_photo`       | 必要           | 必要     | dish_photo 用（推定） |
+| `nutrition_label`  | 必要           | 必要     | nutrition_label 用（記載値読み取り） |
+| `text_ai`          | 必要           | **不要** | text_ai 用（テキスト → 推定） |
+| `text_manual`      | **不要**        | **不要** | — |
+
+各モードのプロンプト本文は [README.md の AI 分析仕様セクション](../../README.md) を正本とする。
+
 ## 呼び出しパターン
 
+**画像モード（dish_photo / nutrition_label）**：
 ```
 1. 画像ファイルを読む
 2. 必要ならリサイズ（最大辺 2000px、5MB 以下目安）
 3. base64 エンコード
-4. messages API に user message として画像 + プロンプトを送信
-5. レスポンスから JSON ブロックを抽出
-6. serde で構造体にデシリアライズ
-7. 失敗時は 1 回までリトライ（プロンプトに「JSON のみ返せ」と再強調）
+4. entry_mode に対応したプロンプトを選択
+5. messages API に user message として画像 + プロンプトを送信
+6. レスポンスから JSON ブロックを抽出
+7. serde で構造体にデシリアライズ
+8. 失敗時は 1 回までリトライ（プロンプトに「JSON のみ返せ」と再強調）
+```
+
+**テキスト AI モード（text_ai）**：
+```
+1. text_description（料理名・説明文）を受け取る
+2. text_ai 用プロンプトに埋め込む
+3. messages API に user message として送信（画像なし）
+4. レスポンスから JSON ブロックを抽出・デシリアライズ
+5. 失敗時は 1 回までリトライ
+```
+
+**手動入力モード（text_manual）**：
+```
+Claude 呼び出しなし。受け取った値をそのまま DB に INSERT する。
 ```
 
 ## プロンプトとスキーマの正本
