@@ -41,10 +41,5 @@ Thumbs.db
 .eslintcache
 
 # --- Claude Code internal files (do not publish) ---
-# worktrees: 一時作業ブランチ、コミット不要
-.claude/worktrees/
-# settings.local.json: ユーザー個人の設定
-.claude/settings.local.json
-# agent-memory / plans: 会話から生成された内部ファイル（個人情報を含む可能性あり）
-.claude/agent-memory/
-.claude/plans/
+# .claude/ 配下は全てローカル管理（rules / agents 含めて非公開運用）
+.claude/
