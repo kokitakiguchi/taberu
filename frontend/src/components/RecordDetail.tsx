@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { deleteRecord, updateRecord } from '../api/records';
-import type { FoodRecord, UpdateRecordPayload } from '../types';
-import { AllergenBadges } from './AllergenBadges';
+import type { FoodRecord } from '../types';
+import { AllergenEditor } from './AllergenEditor';
 import { NutritionInfo } from './NutritionInfo';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
@@ -26,11 +26,10 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
   const ingredients = record.components?.main_ingredients ?? [];
   const allergens = record.allergens ?? [];
 
-  async function handleSave() {
+  async function handleSaveNotes() {
     setSaving(true);
     try {
-      const payload: UpdateRecordPayload = { notes };
-      const updated = await updateRecord(record.id, payload);
+      const updated = await updateRecord(record.id, { notes });
       onUpdated(updated);
       setEditing(false);
     } finally {
@@ -73,7 +72,24 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
         )}
 
         <NutritionInfo record={record} />
-        <AllergenBadges allergens={allergens} />
+
+        {editing ? (
+          <AllergenEditor
+            recordId={record.id}
+            allergens={allergens}
+            onUpdated={onUpdated}
+          />
+        ) : (
+          allergens.length > 0 && (
+            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {allergens.map((a) => (
+                <span key={a} style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, padding: '2px 8px', fontSize: 12 }}>
+                  ⚠️ {a}
+                </span>
+              ))}
+            </div>
+          )
+        )}
 
         {editing && (
           <div style={{ marginTop: 8 }}>
@@ -84,10 +100,10 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
               style={{ width: '100%', boxSizing: 'border-box' }}
               placeholder="メモ"
             />
-            <button onClick={handleSave} disabled={saving}>
-              {saving ? '保存中...' : '保存'}
+            <button onClick={handleSaveNotes} disabled={saving}>
+              {saving ? '保存中...' : 'メモを保存'}
             </button>
-            <button onClick={() => setEditing(false)} style={{ marginLeft: 8 }}>キャンセル</button>
+            <button onClick={() => setEditing(false)} style={{ marginLeft: 8 }}>閉じる</button>
           </div>
         )}
         {!editing && record.notes && (

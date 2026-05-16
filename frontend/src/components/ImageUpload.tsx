@@ -1,13 +1,19 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { uploadRecord } from '../api/records';
-import type { FoodRecord } from '../types';
+import { createRecord } from '../api/records';
+import type { EntryMode, FoodRecord } from '../types';
 
 type Props = {
+  entryMode: Extract<EntryMode, 'dish_photo' | 'nutrition_label'>;
   onUploaded: (record: FoodRecord) => void;
 };
 
-export function ImageUpload({ onUploaded }: Props) {
+const HINT: Record<Props['entryMode'], string> = {
+  dish_photo: '料理写真をドラッグ＆ドロップ、またはクリックして選択',
+  nutrition_label: '栄養成分ラベルの写真をドラッグ＆ドロップ、またはクリックして選択',
+};
+
+export function ImageUpload({ entryMode, onUploaded }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,14 +23,17 @@ export function ImageUpload({ onUploaded }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const record = await uploadRecord(file);
+      const form = new FormData();
+      form.append('entry_mode', entryMode);
+      form.append('image', file);
+      const record = await createRecord(form);
       onUploaded(record);
     } catch {
       setError('アップロードに失敗しました。もう一度試してください。');
     } finally {
       setLoading(false);
     }
-  }, [onUploaded]);
+  }, [entryMode, onUploaded]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -48,11 +57,7 @@ export function ImageUpload({ onUploaded }: Props) {
         }}
       >
         <input {...getInputProps()} />
-        {loading
-          ? '分析中...'
-          : isDragActive
-          ? 'ここにドロップ'
-          : '写真をドラッグ＆ドロップ、またはクリックして選択'}
+        {loading ? '分析中...' : isDragActive ? 'ここにドロップ' : HINT[entryMode]}
       </div>
       {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
     </div>
