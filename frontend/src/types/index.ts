@@ -1,3 +1,5 @@
+export type EntryMode = 'dish_photo' | 'nutrition_label' | 'text_ai' | 'text_manual';
+
 export interface Components {
   dish_name: string;
   main_ingredients: string[];
@@ -6,6 +8,7 @@ export interface Components {
 export interface FoodRecord {
   id: number;
   user_id: number;
+  entry_mode: string;
   image_path: string | null;
   calories_kcal: number | null;
   protein_g: number | null;
@@ -47,10 +50,8 @@ export interface NutrientsStats {
   };
 }
 
+// 現スコープ：アレルゲンとメモのみ編集可能
 export interface UpdateRecordPayload {
-  calories_kcal?: number;
-  protein_g?: number;
-  fat_g?: number;
-  carbs_g?: number;
+  allergens?: string[] | null;
   notes?: string;
 }
