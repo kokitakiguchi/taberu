@@ -26,7 +26,7 @@ pub async fn calories_stats(
     let rows = sqlx::query!(
         r#"SELECT DATE(created_at) as day, SUM(calories_kcal) as total
            FROM food_records
-           WHERE user_id = 1 AND created_at >= NOW() - INTERVAL '1 day' * $1
+           WHERE user_id = 1 AND created_at >= NOW() - INTERVAL '1 day' * $1::bigint
            GROUP BY DATE(created_at)
            ORDER BY day"#,
         days
