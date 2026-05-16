@@ -43,15 +43,32 @@ pub async fn save_and_encode(
 }
 
 pub async fn delete_file(upload_dir: &str, relative_path: &str) -> Result<(), AppError> {
-    // relative_path は "uploads/20250514/..." の形式
-    let path = if relative_path.starts_with("uploads/") {
+    let joined = if relative_path.starts_with("uploads/") {
         Path::new(upload_dir).join(relative_path.trim_start_matches("uploads/"))
     } else {
         Path::new(upload_dir).join(relative_path)
     };
-    if path.exists() {
-        tokio::fs::remove_file(path).await?;
+
+    // canonicalize で ../ 等を解決し、upload_dir の外に出ていないか検証する
+    let canonical = match joined.canonicalize() {
+        Ok(p) => p,
+        Err(_) => return Ok(()), // ファイルが存在しない → 削除不要
+    };
+
+    let canonical_base = Path::new(upload_dir)
+        .canonicalize()
+        .map_err(|e| AppError::Storage(format!("upload_dir invalid: {e}")))?;
+
+    if !canonical.starts_with(&canonical_base) {
+        tracing::warn!(
+            "path traversal attempt blocked: relative_path={:?}, resolved={:?}",
+            relative_path,
+            canonical
+        );
+        return Err(AppError::InvalidInput("invalid file path".to_string()));
     }
+
+    tokio::fs::remove_file(&canonical).await?;
     Ok(())
 }
 

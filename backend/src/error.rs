@@ -25,8 +25,14 @@ impl IntoResponse for AppError {
                 tracing::error!("database error: {e}");
                 (StatusCode::INTERNAL_SERVER_ERROR, "DB_ERROR", "internal server error".to_string())
             }
-            AppError::Claude(msg) => (StatusCode::BAD_GATEWAY, "CLAUDE_ERROR", msg.clone()),
-            AppError::Storage(msg) => (StatusCode::INTERNAL_SERVER_ERROR, "STORAGE_ERROR", msg.clone()),
+            AppError::Claude(msg) => {
+                tracing::error!("claude api error: {msg}");
+                (StatusCode::BAD_GATEWAY, "CLAUDE_ERROR", "AI analysis service error".to_string())
+            }
+            AppError::Storage(msg) => {
+                tracing::error!("storage error: {msg}");
+                (StatusCode::INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "internal server error".to_string())
+            }
             AppError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, "INVALID_INPUT", msg.clone()),
             AppError::Io(e) => {
                 tracing::error!("io error: {e}");

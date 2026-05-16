@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { fetchRecords } from '../api/records';
+import { EntryModeSelector } from '../components/EntryModeSelector';
 import { ImageUpload } from '../components/ImageUpload';
 import { RecordList } from '../components/RecordList';
-import type { FoodRecord } from '../types';
+import { TextEntryForm } from '../components/TextEntryForm';
+import type { EntryMode, FoodRecord } from '../types';
 
 function toDateString(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
 export function Dashboard() {
+  const [entryMode, setEntryMode] = useState<EntryMode>('dish_photo');
   const [date, setDate] = useState(toDateString(new Date()));
   const [records, setRecords] = useState<FoodRecord[]>([]);
   const [totalCalories, setTotalCalories] = useState(0);
@@ -24,7 +27,7 @@ export function Dashboard() {
       .finally(() => setLoading(false));
   }, [date]);
 
-  function handleUploaded(record: FoodRecord) {
+  function handleCreated(record: FoodRecord) {
     setRecords((prev) => [record, ...prev]);
     setTotalCalories((prev) => prev + (record.calories_kcal ?? 0));
   }
@@ -45,7 +48,14 @@ export function Dashboard() {
     <div style={{ maxWidth: 640, margin: '0 auto', padding: 16 }}>
       <h1 style={{ fontSize: 24, marginBottom: 16 }}>Taberu</h1>
 
-      <ImageUpload onUploaded={handleUploaded} />
+      <EntryModeSelector value={entryMode} onChange={setEntryMode} />
+
+      {(entryMode === 'dish_photo' || entryMode === 'nutrition_label') && (
+        <ImageUpload entryMode={entryMode} onUploaded={handleCreated} />
+      )}
+      {(entryMode === 'text_ai' || entryMode === 'text_manual') && (
+        <TextEntryForm entryMode={entryMode} onCreated={handleCreated} />
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '16px 0' }}>
         <label htmlFor="date-picker">日付：</label>

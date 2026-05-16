@@ -4,6 +4,7 @@ pub struct Config {
     pub upload_dir: String,
     pub port: u16,
     pub claude_mock: bool,
+    pub cors_origin: Option<String>,
 }
 
 impl Config {
@@ -20,6 +21,7 @@ impl Config {
                 .parse()
                 .expect("PORT must be a number"),
             claude_mock: std::env::var("CLAUDE_MOCK").is_ok(),
+            cors_origin: std::env::var("CORS_ORIGIN").ok(),
         }
     }
 }

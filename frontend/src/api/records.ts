@@ -5,9 +5,7 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
 });
 
-export async function uploadRecord(file: File): Promise<FoodRecord> {
-  const form = new FormData();
-  form.append('image', file);
+export async function createRecord(form: FormData): Promise<FoodRecord> {
   const { data } = await api.post<FoodRecord>('/api/records', form);
   return data;
 }
