@@ -45,8 +45,18 @@
    - 固定ユーザーID = 1 で運用
    - 設計：将来的にマルチユーザー対応可能（user_id 外部キーは保持）
 
-2. **食べ物記録**
-   - 📸 写真アップロード（ドラッグ&ドロップ対応）
+2. **食べ物記録**（3つの入力モード）
+
+   | モード | 概要 |
+   |--------|------|
+   | `dish_photo` | 料理写真を撮影 → Claude が栄養情報を **推定** |
+   | `nutrition_label` | 食品パッケージの栄養成分表示ラベルを撮影 → Claude が **記載値をそのまま読み取り** |
+   | `text_ai` | 料理名・説明をテキスト入力 → Claude が栄養情報を **推定** |
+   | `text_manual` | 料理名・栄養値をすべて **手動入力**（AI不使用） |
+
+   - 📸 写真アップロード（ドラッグ&ドロップ対応）— `dish_photo` / `nutrition_label` モード
+   - 📦 栄養ラベル読み取り：パッケージ裏面の数値を正確に抽出（推定値ではなく記載値）
+   - ⌨️ テキスト入力：写真なしで記録可能（AI推定 or 手動入力を選択）
    - 🤖 Claude API によるリアルタイム分析
      - 自動抽出：カロリー（kcal）、タンパク質（g）、脂肪（g）、炭水化物（g）
      - 主な成分・食材リスト
@@ -60,6 +70,8 @@
      - 日付指定検索
      - アレルギーフィルター（登録アレルゲンを含む食べ物のハイライト）
    - 🗑️ 記録削除・編集
+     - 現在スコープ：アレルゲンの追加・削除
+     - 将来スコープ：全フィールド（料理名・食材・カロリー・PFC・メモ）の編集
 
 **Tier 2: 統計・グラフ機能（Phase 1 後期 ~ Phase 2 初期）**
 
@@ -190,7 +202,12 @@ CREATE TABLE users (
 CREATE TABLE food_records (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    image_path VARCHAR(1024),  -- 相対パス例：uploads/20250514/user_1_20250514_120000_abc123.jpg
+    entry_mode VARCHAR(20) NOT NULL DEFAULT 'dish_photo',
+    -- 'dish_photo'     : 料理写真 → Claude推定
+    -- 'nutrition_label': 成分表示ラベル → Claude記載値読み取り
+    -- 'text_ai'        : テキスト入力 → Claude推定
+    -- 'text_manual'    : テキスト入力 → 手動入力
+    image_path VARCHAR(1024),  -- 相対パス例：uploads/20250514/user_1_20250514_120000_abc123.jpg（text系モードでは NULL）
     calories_kcal DECIMAL(7, 2),
     protein_g DECIMAL(6, 2),
     fat_g DECIMAL(6, 2),
@@ -239,14 +256,23 @@ CREATE TABLE allergen_names (
 
 **リクエスト**（multipart/form-data）：
 ```
-- image: File（JPG/PNG、最大10MB）
+- entry_mode: string（必須）— 'dish_photo' | 'nutrition_label' | 'text_ai' | 'text_manual'
 - date: string（ISO 8601形式、例：2025-05-14）
+- image: File（JPG/PNG、最大10MB）— dish_photo / nutrition_label モードのみ必須
+- text_description: string — text_ai / text_manual モードで料理名・説明を渡す
+- calories_kcal: number — text_manual モードのみ（手動入力値）
+- protein_g: number    — text_manual モードのみ
+- fat_g: number        — text_manual モードのみ
+- carbs_g: number      — text_manual モードのみ
+- dish_name: string    — text_manual モードのみ
+- allergens: JSON配列  — text_manual モードのみ
 ```
 
 **レスポンス**（201 Created）：
 ```json
 {
   "id": 1,
+  "entry_mode": "dish_photo",
   "image_path": "uploads/20250514/user_1_20250514_120000_abc123.jpg",
   "calories_kcal": 450.5,
   "protein_g": 15.2,
@@ -316,13 +342,15 @@ CREATE TABLE allergen_names (
 
 #### 記録編集：PUT /api/records/{id}
 
-**リクエスト**：
+**リクエスト**（現スコープ：アレルゲン追加/削除 + メモ）：
 ```json
 {
-  "calories_kcal": 460.0,
+  "allergens": ["卵", "小麦", "乳"],
   "notes": "修正：バターが多めだった"
 }
 ```
+
+> **将来スコープ**：`dish_name`, `main_ingredients`, `calories_kcal`, `protein_g`, `fat_g`, `carbs_g` も編集可能にする。
 
 #### 記録削除：DELETE /api/records/{id}
 
@@ -368,15 +396,15 @@ CREATE TABLE allergen_names (
 
 ## AI分析仕様（Claude API）
 
-### 分析プロンプト
+### 分析プロンプト（モード別）
+
+入力モードに応じてプロンプトを切り替える。出力JSONスキーマは統一。
+
+#### dish_photo モード（料理写真 → 推定）
 
 ```
-以下の食べ物の写真を分析して、JSON形式で以下の情報を返してください：
-1. 料理名
-2. 主な食材（3-5個）
-3. 推定カロリー（kcal）
-4. 推定栄養素（タンパク質g、脂肪g、炭水化物g）
-5. 含まれるアレルゲン（特定原材料7品目 + 推奨表示20品目）
+以下の食べ物の写真を分析して、JSON形式で情報を返してください。
+値はすべて推定値です。
 
 JSON形式：
 {
@@ -389,7 +417,57 @@ JSON形式：
   "allergens": ["卵", "小麦"]
 }
 
-推定値の場合は「約」とコメントを付けてください。成分表示の写真の場合は、記載値を使用してください。
+1. 料理名
+2. 主な食材（3-5個）
+3. 推定カロリー（kcal）
+4. 推定栄養素（タンパク質g、脂肪g、炭水化物g）
+5. 含まれるアレルゲン（特定原材料7品目 + 推奨表示20品目）
+```
+
+#### nutrition_label モード（成分表示ラベル → 記載値読み取り）
+
+```
+この画像は食品パッケージの栄養成分表示ラベルです。
+印刷されている数値をそのまま読み取り、JSON形式で返してください。
+推定ではなく記載値を使用してください。一食分（または100g）の値を優先。
+
+JSON形式：
+{
+  "dish_name": "商品名",
+  "main_ingredients": [],
+  "calories_kcal": 180,
+  "protein_g": 4.5,
+  "fat_g": 2.0,
+  "carbs_g": 35.0,
+  "allergens": ["小麦", "乳"]
+}
+
+アレルゲンはラベルの「原材料名」または「アレルゲン表示」欄から読み取る。
+読み取れないフィールドは null を返す。
+```
+
+#### text_ai モード（テキスト入力 → 推定）
+
+```
+以下の料理名・説明から栄養情報を推定して、JSON形式で返してください。
+
+入力：{text_description}
+
+JSON形式：
+{
+  "dish_name": "ざるそば",
+  "main_ingredients": ["そば", "だし", "ねぎ"],
+  "calories_kcal": 290,
+  "protein_g": 12,
+  "fat_g": 2,
+  "carbs_g": 58,
+  "allergens": ["小麦", "そば"]
+}
+
+1. 料理名（入力から判断）
+2. 主な食材（推定）
+3. 推定カロリー・栄養素
+4. 含まれるアレルゲン（特定原材料7品目 + 推奨表示20品目）
 ```
 
 ### API呼び出し
@@ -494,12 +572,17 @@ JSON形式：
 ログイン（スキップ）
     ↓
 Dashboard（日別記録一覧）
-    ├→ ImageUpload（ドラッグ&ドロップで写真アップロード）
-    │   └→ AI分析結果表示（修正可能）
-    │       └→ 記録保存
+    ├→ [モード選択] 料理写真 / 栄養ラベル / テキスト入力
+    │   ├→ 料理写真・栄養ラベル：ImageUpload（ドラッグ&ドロップ）
+    │   │   └→ AI分析結果表示（確認 + アレルゲン編集可）
+    │   │       └→ 記録保存
+    │   │
+    │   └→ テキスト入力：料理名を入力
+    │       ├→ AI推定モード：Claude が栄養推定 → 確認 → 保存
+    │       └→ 手動入力モード：全フィールドを自分で入力 → 保存
     │
     ├→ DailyDetail（日別詳細ビュー）
-    │   ├→ 記録編集
+    │   ├→ 記録編集（現スコープ：アレルゲン追加/削除 + メモ）
     │   └→ 記録削除
     │
     └→ AnalyticsDashboard（グラフダッシュボード）
@@ -513,11 +596,16 @@ Dashboard（日別記録一覧）
 ```
 App.tsx
 ├── Dashboard.tsx
-│   ├── ImageUpload.tsx（ドラッグ&ドロップ）
+│   ├── EntryModeSelector.tsx（モード選択タブ：料理写真 / 栄養ラベル / テキスト）
+│   ├── ImageUpload.tsx（ドラッグ&ドロップ — dish_photo / nutrition_label）
+│   ├── TextEntryForm.tsx（テキスト入力フォーム — text_ai / text_manual）
+│   │   └── ManualNutritionForm.tsx（手動入力フィールド — text_manual）
+│   ├── AnalysisResult.tsx（AI分析結果の確認・アレルゲン編集）
 │   ├── RecordList.tsx（記録一覧）
 │   │   └── RecordDetail.tsx（個別記録）
 │   │       ├── NutritionInfo.tsx
-│   │       └── AllergenBadges.tsx
+│   │       ├── AllergenBadges.tsx
+│   │       └── AllergenEditor.tsx（アレルゲン追加/削除 — 編集スコープ）
 │   └── AllergyFilter.tsx
 │
 └── AnalyticsDashboard.tsx
@@ -940,9 +1028,10 @@ docker compose -f docker-compose.prod.yml exec postgres \
 
 ---
 
-**最終更新**: 2026-05-14  
+**最終更新**: 2026-05-16  
 **プロジェクトステータス**: MVP スキャフォールド完了（Rust コンパイル・DB 動作確認が次のステップ）  
 **ドキュメント変更履歴**:
+- 2026-05-16：仕様変更 — 入力モード3種（成分表示ラベル読み取り・テキスト入力AI推定・手動入力）を追加。PUT /api/records/{id} に allergens フィールドを追加（編集スコープ拡張）。DBスキーマに entry_mode カラム追加。
 - 2026-05-14：MVP スキャフォールド完了（backend/, frontend/, migrations/, docker-compose.yml）。開発セットアップセクションをクイックスタート形式に刷新し、Dev Container 環境の起動手順を追記。
 - 2026-05-15：Dev Container クイックスタートを修正。`.devcontainer/` に Docker daemon 連携 feature が無いため、Postgres コンテナはホスト側で起動し、Dev Container 内からは `host.docker.internal` 経由で接続する手順に書き換え。
 - 2026-05-14：学習トラック（コード理解 + MCP / Claude Skills）の方針を追記。AI分析仕様に段階的精度向上ステップを追加し、「MCP & Claude Skills 活用方針」セクションを新設。
