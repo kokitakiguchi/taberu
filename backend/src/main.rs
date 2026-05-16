@@ -12,6 +12,7 @@ use axum::{
     Router,
 };
 use sqlx::PgPool;
+use axum::http::HeaderValue;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
@@ -43,10 +44,21 @@ async fn main() {
 
     let state = AppState { pool, config: config.clone() };
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    let cors = if let Some(origin) = &config.cors_origin {
+        let header_val = origin
+            .parse::<HeaderValue>()
+            .expect("CORS_ORIGIN must be a valid HTTP origin (e.g. http://localhost:5173, no trailing slash)");
+        CorsLayer::new()
+            .allow_origin(header_val)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    } else {
+        tracing::warn!("CORS_ORIGIN not set — allowing all origins. Set in production.");
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
 
     let app = Router::new()
         .route("/api/records", post(handlers::records::create_record))

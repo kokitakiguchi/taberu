@@ -26,10 +26,10 @@ pub async fn calories_stats(
     let rows = sqlx::query!(
         r#"SELECT DATE(created_at) as day, SUM(calories_kcal) as total
            FROM food_records
-           WHERE user_id = 1 AND created_at >= NOW() - ($1 || ' days')::interval
+           WHERE user_id = 1 AND created_at >= NOW() - INTERVAL '1 day' * $1
            GROUP BY DATE(created_at)
            ORDER BY day"#,
-        days.to_string()
+        days
     )
     .fetch_all(&state.pool)
     .await?;
@@ -42,7 +42,7 @@ pub async fn calories_stats(
     let avg: f64 = if data.is_empty() {
         0.0
     } else {
-        rows.iter().filter_map(|r| r.total.map(|v| v.to_string().parse::<f64>().unwrap_or(0.0))).sum::<f64>() / data.len() as f64
+        rows.iter().filter_map(|r| r.total).sum::<f64>() / data.len() as f64
     };
 
     Ok(Json(json!({
@@ -62,15 +62,15 @@ pub async fn nutrients_stats(
 
     let date = chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
         .map_err(|_| AppError::InvalidInput("date must be YYYY-MM-DD".to_string()))?;
-    let start = date.and_hms_opt(0, 0, 0).unwrap();
-    let end = date.and_hms_opt(23, 59, 59).unwrap();
+    let start = date.and_hms_opt(0, 0, 0).expect("(0,0,0) is always a valid time");
+    let end = date.and_hms_opt(23, 59, 59).expect("(23,59,59) is always a valid time");
 
     let row = sqlx::query!(
         r#"SELECT
-             COALESCE(SUM(calories_kcal), 0) as total_calories,
-             COALESCE(SUM(protein_g), 0) as total_protein,
-             COALESCE(SUM(fat_g), 0) as total_fat,
-             COALESCE(SUM(carbs_g), 0) as total_carbs
+             COALESCE(SUM(calories_kcal), 0)::float8 as total_calories,
+             COALESCE(SUM(protein_g), 0)::float8 as total_protein,
+             COALESCE(SUM(fat_g), 0)::float8 as total_fat,
+             COALESCE(SUM(carbs_g), 0)::float8 as total_carbs
            FROM food_records
            WHERE user_id = 1 AND created_at >= $1 AND created_at <= $2"#,
         start, end
@@ -78,10 +78,10 @@ pub async fn nutrients_stats(
     .fetch_one(&state.pool)
     .await?;
 
-    let cal = row.total_calories.unwrap_or(0.into()).to_string().parse::<f64>().unwrap_or(0.0);
-    let protein = row.total_protein.unwrap_or(0.into()).to_string().parse::<f64>().unwrap_or(0.0);
-    let fat = row.total_fat.unwrap_or(0.into()).to_string().parse::<f64>().unwrap_or(0.0);
-    let carbs = row.total_carbs.unwrap_or(0.into()).to_string().parse::<f64>().unwrap_or(0.0);
+    let cal = row.total_calories.unwrap_or(0.0);
+    let protein = row.total_protein.unwrap_or(0.0);
+    let fat = row.total_fat.unwrap_or(0.0);
+    let carbs = row.total_carbs.unwrap_or(0.0);
 
     let (protein_pct, fat_pct, carbs_pct) = if cal > 0.0 {
         (protein * 4.0 / cal * 100.0, fat * 9.0 / cal * 100.0, carbs * 4.0 / cal * 100.0)

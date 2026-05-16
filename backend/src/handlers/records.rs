@@ -197,14 +197,14 @@ pub async fn list_records(
     State(state): State<AppState>,
     Query(params): Query<RecordsQuery>,
 ) -> Result<Json<Value>, AppError> {
-    let limit = params.limit.unwrap_or(50);
-    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(50).clamp(1, 200);
+    let offset = params.offset.unwrap_or(0).max(0);
 
     let records = if let Some(date_str) = &params.date {
         let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
             .map_err(|_| AppError::InvalidInput("date must be YYYY-MM-DD".to_string()))?;
-        let start = date.and_hms_opt(0, 0, 0).unwrap();
-        let end = date.and_hms_opt(23, 59, 59).unwrap();
+        let start = date.and_hms_opt(0, 0, 0).expect("(0,0,0) is always a valid time");
+        let end = date.and_hms_opt(23, 59, 59).expect("(23,59,59) is always a valid time");
 
         sqlx::query_as!(
             FoodRecord,

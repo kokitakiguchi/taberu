@@ -157,7 +157,7 @@ async fn call_with_retry(
             }
         }
     }
-    Err(last_err.unwrap())
+    Err(last_err.expect("loop runs at least once, last_err is always set"))
 }
 
 fn extract_text(resp: &Value) -> Result<String, AppError> {
