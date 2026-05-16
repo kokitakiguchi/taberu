@@ -28,28 +28,43 @@ impl AnalysisResult {
     }
 }
 
+const PROMPT_SUFFIX: &str = "JSONのみを返し、他の文章は不要です。アレルゲンは特定原材料7品目（えび、かに、小麦、そば、卵、乳、落花生）と推奨表示21品目から該当するものを列挙してください。";
+
+const JSON_SCHEMA: &str = r#"{
+  "dish_name": "料理名",
+  "main_ingredients": ["食材1", "食材2"],
+  "calories_kcal": 数値,
+  "protein_g": 数値,
+  "fat_g": 数値,
+  "carbs_g": 数値,
+  "allergens": ["アレルゲン1"]
+}"#;
+
+// dish_photo / nutrition_label モード：画像から分析
 pub async fn analyze_image(
     api_key: &str,
     base64_image: &str,
     media_type: &str,
+    is_nutrition_label: bool,
     mock: bool,
 ) -> Result<AnalysisResult, AppError> {
     if mock {
         return Ok(AnalysisResult::mock());
     }
 
-    let client = reqwest::Client::new();
-    let prompt = r#"以下の食べ物の写真を分析して、JSON形式で以下の情報を返してください。JSONのみを返し、他の文章は不要です。
-{
-  "dish_name": "料理名",
-  "main_ingredients": ["食材1", "食材2", "食材3"],
-  "calories_kcal": 数値,
-  "protein_g": 数値,
-  "fat_g": 数値,
-  "carbs_g": 数値,
-  "allergens": ["アレルゲン1"]
-}
-アレルゲンは特定原材料7品目（えび、かに、小麦、そば、卵、乳、落花生）と推奨表示21品目から該当するものを列挙してください。"#;
+    let prompt = if is_nutrition_label {
+        format!(
+            "この画像は食品パッケージの栄養成分表示ラベルです。\
+印刷されている数値をそのまま読み取り、JSON形式で返してください。推定ではなく記載値を使用してください。\
+一食分（または100g）の値を優先。アレルゲンは原材料名欄から読み取ってください。\
+読み取れないフィールドは null を返してください。\n{JSON_SCHEMA}\n{PROMPT_SUFFIX}"
+        )
+    } else {
+        format!(
+            "以下の食べ物の写真を分析して、JSON形式で栄養情報を返してください。値はすべて推定値です。\n\
+{JSON_SCHEMA}\n{PROMPT_SUFFIX}"
+        )
+    };
 
     let body = json!({
         "model": "claude-3-5-sonnet-20241022",
@@ -73,6 +88,37 @@ pub async fn analyze_image(
         }]
     });
 
+    let client = reqwest::Client::new();
+    let resp = call_with_retry(&client, api_key, &body).await?;
+    let text = extract_text(&resp)?;
+    parse_json_from_text(&text)
+}
+
+// text_ai モード：料理名・説明文から栄養情報を推定（画像なし）
+pub async fn analyze_text(
+    api_key: &str,
+    description: &str,
+    mock: bool,
+) -> Result<AnalysisResult, AppError> {
+    if mock {
+        return Ok(AnalysisResult::mock());
+    }
+
+    let prompt = format!(
+        "以下の料理名・説明から栄養情報を推定して、JSON形式で返してください。\n\
+入力：{description}\n\n{JSON_SCHEMA}\n{PROMPT_SUFFIX}"
+    );
+
+    let body = json!({
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 1024,
+        "messages": [{
+            "role": "user",
+            "content": [{"type": "text", "text": prompt}]
+        }]
+    });
+
+    let client = reqwest::Client::new();
     let resp = call_with_retry(&client, api_key, &body).await?;
     let text = extract_text(&resp)?;
     parse_json_from_text(&text)
@@ -124,7 +170,6 @@ fn extract_text(resp: &Value) -> Result<String, AppError> {
 }
 
 fn parse_json_from_text(text: &str) -> Result<AnalysisResult, AppError> {
-    // JSON ブロックを抽出（```json ... ``` も考慮）
     let json_str = if let Some(start) = text.find('{') {
         let end = text.rfind('}').unwrap_or(text.len() - 1);
         &text[start..=end]
