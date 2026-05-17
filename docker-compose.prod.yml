@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: taberu_db
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?error: POSTGRES_PASSWORD is required}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +19,7 @@ services:
       context: ./backend
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/taberu_db
-      CLAUDE_API_KEY: ${CLAUDE_API_KEY:?error: CLAUDE_API_KEY is required}
+      CLAUDE_API_KEY: "${CLAUDE_API_KEY:?CLAUDE_API_KEY is required}"
       UPLOAD_DIR: /data/uploads
       RUST_LOG: ${RUST_LOG:-info}
     volumes:
