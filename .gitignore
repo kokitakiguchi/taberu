@@ -39,3 +39,7 @@ Thumbs.db
 # --- Caches ---
 .cache/
 .eslintcache
+
+# --- Claude Code internal files (do not publish) ---
+# .claude/ 配下は全てローカル管理（rules / agents 含めて非公開運用）
+.claude/
