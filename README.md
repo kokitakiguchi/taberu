@@ -102,9 +102,9 @@ npm run dev
 `docker-compose.prod.yml` で全サービスをまとめて起動します。
 
 ```bash
-# ルートに .env を作成
-echo "POSTGRES_PASSWORD=強いパスワード" > .env
-echo "CLAUDE_API_KEY=sk-ant-xxxx" >> .env
+# ルートに .env を作成（テンプレートをコピーして値を埋める）
+cp .env.example .env
+# エディタで POSTGRES_PASSWORD と CLAUDE_API_KEY を実値に書き換える
 
 # sqlx クエリキャッシュを事前生成（初回のみ）
 cd backend

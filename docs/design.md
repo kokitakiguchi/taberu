@@ -878,7 +878,14 @@ git commit -m "chore: add sqlx query cache for offline build"
 
 #### ステップ 2：環境変数の設定
 
-プロジェクトルートに `.env` ファイルを作成します（git 管理外）。
+プロジェクトルートに `.env` ファイルを作成します（git 管理外）。テンプレート `.env.example` をコピーして値を埋めるのが楽です。
+
+```bash
+cp .env.example .env
+# エディタで POSTGRES_PASSWORD と CLAUDE_API_KEY を実値に書き換える
+```
+
+`.env` の最小構成：
 
 ```env
 POSTGRES_PASSWORD=強いパスワードに変える
