@@ -9,6 +9,25 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d taberu_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # ワンショットツール: migrations を適用し backend/.sqlx/ を生成する。
+  # 使い方: `docker compose run --rm sqlx-prepare`
+  # 通常の `docker compose up` では起動しない（profiles: tools）。
+  sqlx-prepare:
+    profiles: ["tools"]
+    image: rust:1-slim
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/work
+    working_dir: /work
+    command: ["bash", "/work/scripts/sqlx-prepare.sh"]
 
 volumes:
   pgdata:

@@ -101,20 +101,33 @@ npm run dev
 
 `docker-compose.prod.yml` で全サービスをまとめて起動します。
 
+ホストに Rust / cargo を入れなくても Docker だけで完結します。
+
 ```bash
-# ルートに .env を作成（テンプレートをコピーして値を埋める）
+# 1. ルートに .env を作成（テンプレートをコピーして値を埋める）
 cp .env.example .env
 # エディタで POSTGRES_PASSWORD と CLAUDE_API_KEY を実値に書き換える
 
-# sqlx クエリキャッシュを事前生成（初回のみ）
-cd backend
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db cargo sqlx prepare
-cd ..
+# 2. マイグレーション適用 + sqlx クエリキャッシュ生成（初回のみ）
+#    内部で開発用 postgres を起動し、migrations/*.sql を順次適用してから
+#    backend/.sqlx/ を生成する Docker ワンショットツール。
+docker compose run --rm sqlx-prepare
+
+# （任意）生成された .sqlx/ をコミットしておくと次回以降スキップ可
 git add backend/.sqlx && git commit -m "chore: update sqlx query cache"
 
-# ビルド & 起動
+# 3. prod イメージのビルド & 起動
 docker compose -f docker-compose.prod.yml up -d --build
+
+# 4. prod 側 postgres にもマイグレーション適用（初回のみ）
+for f in migrations/*.sql; do
+  docker compose -f docker-compose.prod.yml exec -T postgres \
+    psql -U postgres -d taberu_db < "$f"
+done
 ```
+
+`backend/.sqlx/` が無いまま prod ビルドすると Dockerfile の早期チェックで
+止まり、上記コマンドの案内が表示されます。
 
 詳細手順は [`docs/design.md`](docs/design.md) の「デプロイメント戦略」セクションを参照。
 

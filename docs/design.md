@@ -853,23 +853,25 @@ mkdir -p /var/lib/taberu/backups
 
 #### ステップ 1：sqlx クエリキャッシュの生成（初回のみ）
 
-バックエンドは `sqlx::query!` マクロによるコンパイル時 SQL 検証を使っているため、Docker ビルド前に `.sqlx/` ディレクトリの生成が必要です。
+バックエンドは `sqlx::query!` マクロによるコンパイル時 SQL 検証を使っているため、Docker ビルド前に `backend/.sqlx/` ディレクトリの生成が必要です。これが無いと prod イメージのビルドは早期に失敗します（Dockerfile 内のチェックで停止）。
+
+ホスト側に Rust / cargo を入れたくないので、`docker-compose.yml` に用意した
+ワンショットサービス `sqlx-prepare` を使います。中で以下を順に行います：
+
+1. 開発用 `postgres` コンテナを起動（healthcheck 通過まで待機）
+2. `migrations/*.sql` を順次適用（既適用ならスキップ）
+3. `rust:1-slim` コンテナ内で `sqlx-cli` をインストールし `cargo sqlx prepare` を実行
+4. ホストの `backend/.sqlx/` に結果を書き出す
 
 ```bash
-# 開発用 DB を起動してスキーマ適用
-docker compose up -d postgres
-docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
-
-# sqlx-cli をインストール（Rust のインストール後）
-cargo install sqlx-cli --no-default-features --features postgres
-
-# クエリキャッシュを生成（backend/ ディレクトリで実行）
-cd backend
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/taberu_db cargo sqlx prepare
-cd ..
+docker compose run --rm sqlx-prepare
 ```
 
-生成された `.sqlx/` ディレクトリをコミットしておきます。
+実体スクリプトは [`scripts/sqlx-prepare.sh`](../scripts/sqlx-prepare.sh)。
+通常の `docker compose up` では起動しないように `profiles: ["tools"]` を付けてあります。
+
+生成された `.sqlx/` ディレクトリをコミットしておけば、別マシン / CI で
+ビルドする際に再度この手順を踏まなくて済みます。
 
 ```bash
 git add backend/.sqlx
@@ -903,9 +905,25 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 #### ステップ 4：スキーマ適用（初回のみ）
 
+prod 側の postgres は別ボリュームなので、ここでもマイグレーションを順次適用します。`migrations/` 配下の SQL を **番号順に全部** 流してください。
+
 ```bash
-docker compose -f docker-compose.prod.yml exec postgres \
+for f in migrations/*.sql; do
+  echo "applying $f"
+  docker compose -f docker-compose.prod.yml exec -T postgres \
+    psql -U postgres -d taberu_db < "$f"
+done
+```
+
+個別に流したい場合：
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres \
   psql -U postgres -d taberu_db < migrations/001_initial.sql
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d taberu_db < migrations/002_add_entry_mode.sql
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d taberu_db < migrations/003_change_decimal_to_float.sql
 ```
 
 #### 確認
