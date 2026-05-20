@@ -52,7 +52,7 @@ Taberu のバージョニングとブランチ運用のルールをまとめる�
 
 ---
 
-## 既知の不整合（次回リリース時に解消）
+## バージョン整合の履歴
 
-- 現在 tag は `v0.1.0` / `v0.1.1` / `v0.1.2` まで存在するが、`backend/Cargo.toml` と `frontend/package.json` の `version` は `0.1.0` のまま。
-- **今回はコードの version を変更しない**。次にリリースを切るタイミングで、manifest を最新 tag（または新しい番号）に合わせて揃える。
+- 〜`v0.1.2` までは tag のみ進み、`backend/Cargo.toml` / `frontend/package.json` の `version` は `0.1.0` のまま不整合だった。
+- **2026-05-20 に `v0.1.3` で解消**：manifest（Cargo.toml / Cargo.lock / package.json）を `0.1.3` に揃え、`main` 上で tag `v0.1.3` を切った。以降は本ドキュメントのリリース手順に従い tag と manifest を常に一致させる。
