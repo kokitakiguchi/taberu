@@ -1,0 +1,95 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM food_records WHERE user_id = 1 ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "image_path",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "calories_kcal",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "protein_g",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "fat_g",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "carbs_g",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "components",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 8,
+        "name": "allergens",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 12,
+        "name": "entry_mode",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4facd26ff3e85be7e2a823d7b24df2645a584d681029bdfb96633e17c04e683e"
+}
