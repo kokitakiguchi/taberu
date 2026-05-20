@@ -131,6 +131,3 @@ done
 
 詳細手順は [`docs/design.md`](docs/design.md) の「デプロイメント戦略」セクションを参照。
 
-## ライセンス
-
-MIT
