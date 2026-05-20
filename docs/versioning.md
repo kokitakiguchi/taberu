@@ -34,10 +34,18 @@ Taberu のバージョニングとブランチ運用のルールをまとめる�
    - `backend/Cargo.toml` の `version`
    - `frontend/package.json` の `version`
 4. `chore: bump version to X.Y.Z` でコミット
-5. **同じ番号で** `main` 上に tag を切る：`git tag vX.Y.Z`
+5. **同じ番号で** `main` 上に tag を切る：`git tag vX.Y.Z`（ローカルのみ）
 6. `develop` を `main` に追従させる（FF）
+7. ブランチ（`main` / `develop`）をリモートへ push する
 
 → 「manifest bump → コミット → tag」を 1 セットで行う。
+
+## タグのリモート push 方針
+
+- **本番リリースを行うまで、tag はリモートへ push しない**（ローカル管理）。
+- tag のリモート push は **本番リリースのタイミングだけ**：`git push origin vX.Y.Z`。
+- ブランチ（`main` / `develop`）の push はリモート tag とは独立に行ってよい。
+- 誤って push した tag は `git push origin --delete vX.Y.Z` で削除できる（ローカル tag は残る）。
 
 ## ブランチモデル
 
@@ -56,3 +64,10 @@ Taberu のバージョニングとブランチ運用のルールをまとめる�
 
 - 〜`v0.1.2` までは tag のみ進み、`backend/Cargo.toml` / `frontend/package.json` の `version` は `0.1.0` のまま不整合だった。
 - **2026-05-20 に `v0.1.3` で解消**：manifest（Cargo.toml / Cargo.lock / package.json）を `0.1.3` に揃え、`main` 上で tag `v0.1.3` を切った。以降は本ドキュメントのリリース手順に従い tag と manifest を常に一致させる。
+- 同日、一度リモートへ push したタグ（`v0.1.0`〜`v0.1.3`）は方針に従い**リモートから削除**（ローカルには保持）。本番リリースまでリモートにはタグを置かない。
+
+## 現状（2026-05-20 時点）
+
+- ローカル tag: `v0.1.0` / `v0.1.1` / `v0.1.2` / `v0.1.3`（保持）
+- リモート（origin）: ブランチ `main` / `develop` のみ。**tag なし**
+- manifest version: `0.1.3`（Cargo.toml / Cargo.lock / package.json 一致）
