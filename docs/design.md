@@ -851,34 +851,7 @@ mkdir -p /var/lib/taberu/backups
                                    [postgres コンテナ :5432]
 ```
 
-#### ステップ 1：sqlx クエリキャッシュの生成（初回のみ）
-
-バックエンドは `sqlx::query!` マクロによるコンパイル時 SQL 検証を使っているため、Docker ビルド前に `backend/.sqlx/` ディレクトリの生成が必要です。これが無いと prod イメージのビルドは早期に失敗します（Dockerfile 内のチェックで停止）。
-
-ホスト側に Rust / cargo を入れたくないので、`docker-compose.yml` に用意した
-ワンショットサービス `sqlx-prepare` を使います。中で以下を順に行います：
-
-1. 開発用 `postgres` コンテナを起動（healthcheck 通過まで待機）
-2. `migrations/*.sql` を順次適用（既適用ならスキップ）
-3. `rust:1-slim` コンテナ内で `sqlx-cli` をインストールし `cargo sqlx prepare` を実行
-4. ホストの `backend/.sqlx/` に結果を書き出す
-
-```bash
-docker compose run --rm sqlx-prepare
-```
-
-実体スクリプトは [`scripts/sqlx-prepare.sh`](../scripts/sqlx-prepare.sh)。
-通常の `docker compose up` では起動しないように `profiles: ["tools"]` を付けてあります。
-
-生成された `.sqlx/` ディレクトリをコミットしておけば、別マシン / CI で
-ビルドする際に再度この手順を踏まなくて済みます。
-
-```bash
-git add backend/.sqlx
-git commit -m "chore: add sqlx query cache for offline build"
-```
-
-#### ステップ 2：環境変数の設定
+#### ステップ 1：環境変数の設定
 
 プロジェクトルートに `.env` ファイルを作成します（git 管理外）。テンプレート `.env.example` をコピーして値を埋めるのが楽です。
 
@@ -897,34 +870,72 @@ CLAUDE_API_KEY=sk-ant-xxxx
 # PORT=80                 # デフォルト値なので省略可
 ```
 
-#### ステップ 3：イメージのビルドと起動
+#### ステップ 2：イメージのビルドと起動
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-#### ステップ 4：スキーマ適用（初回のみ）
+これだけで以下が自動で走ります：
 
-prod 側の postgres は別ボリュームなので、ここでもマイグレーションを順次適用します。`migrations/` 配下の SQL を **番号順に全部** 流してください。
+1. `postgres` コンテナの起動（healthcheck で準備完了を待機）
+2. `backend` イメージのビルド（`backend/.sqlx/` のオフラインキャッシュを利用、ホストに Rust 不要）
+3. `backend` 起動時に `sqlx::migrate!` が `migrations/*.sql` を `_sqlx_migrations` テーブル管理で順次適用
+4. `frontend` (nginx) の起動
 
-```bash
-for f in migrations/*.sql; do
-  echo "applying $f"
-  docker compose -f docker-compose.prod.yml exec -T postgres \
-    psql -U postgres -d taberu_db < "$f"
-done
-```
+#### クエリを書き換えたときのみ：sqlx キャッシュ再生成
 
-個別に流したい場合：
+`sqlx::query!` / `query_as!` の追加・変更時のみ、オフラインビルド用のキャッシュ
+`backend/.sqlx/` を再生成して **コミット** する必要があります。
 
 ```bash
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U postgres -d taberu_db < migrations/001_initial.sql
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U postgres -d taberu_db < migrations/002_add_entry_mode.sql
-docker compose -f docker-compose.prod.yml exec -T postgres \
-  psql -U postgres -d taberu_db < migrations/003_change_decimal_to_float.sql
+docker compose run --rm sqlx-prepare
+git add backend/.sqlx
+git commit -m "chore: update sqlx query cache"
 ```
+
+ワンショットツール `sqlx-prepare` は `docker-compose.yml` に `profiles: ["tools"]`
+付きで定義されているため、通常の `docker compose up` では起動しません。
+中身は [`scripts/sqlx-prepare.sh`](../scripts/sqlx-prepare.sh) を参照。
+
+> ⚠️ 再生成忘れに注意。古い `.sqlx/` のままだとビルドは通っても実 DB スキーマと
+> 乖離した型で動作する可能性があります。
+>
+> 🔒 セキュリティ補足：`.sqlx/` には SQL リテラルとスキーマの型情報のみで、
+> 接続情報・実データ・シークレットは一切含まれません。`backend/src/**/*.rs`
+> および `migrations/*.sql` で既に公開している情報の再エンコードに過ぎないため、
+> 公開リポジトリでもコミット可。コミットしてはいけないのは `.env` のみです。
+
+#### 既存環境からの移行（手動 psql で migrations を適用済みの場合）
+
+過去に `psql < migrations/*.sql` を手動で流していた本番 DB がある場合、
+`_sqlx_migrations` テーブルが空のままなので、`sqlx::migrate!` が既存テーブルを
+再作成しようとしてエラーになります。以下で適用済みフラグを backfill してください。
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d taberu_db <<'SQL'
+CREATE TABLE IF NOT EXISTS _sqlx_migrations (
+  version BIGINT PRIMARY KEY,
+  description TEXT NOT NULL,
+  installed_on TIMESTAMPTZ NOT NULL DEFAULT now(),
+  success BOOLEAN NOT NULL,
+  checksum BYTEA NOT NULL,
+  execution_time BIGINT NOT NULL
+);
+-- 既に適用済みのマイグレーションをすべて記録（checksum はダミーで OK）
+INSERT INTO _sqlx_migrations(version, description, success, checksum, execution_time)
+VALUES
+  (1, 'initial',                  true, ''::bytea, 0),
+  (2, 'add_entry_mode',           true, ''::bytea, 0),
+  (3, 'change_decimal_to_float',  true, ''::bytea, 0)
+ON CONFLICT (version) DO NOTHING;
+SQL
+```
+
+> 注：sqlx 0.7 の `migrate!` はデフォルトで checksum 一致を検証するため、過去に
+> 適用したファイルを後から編集すると起動時エラーになります。修正が必要な場合は
+> **常に新規マイグレーションファイルを追加** してください（CLAUDE.md の規約と一致）。
 
 #### 確認
 

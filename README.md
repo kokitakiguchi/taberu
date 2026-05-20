@@ -33,10 +33,9 @@
 
 ```bash
 docker compose up -d postgres
-docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/001_initial.sql
-docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/002_add_entry_mode.sql
-docker compose exec -T postgres psql -U postgres -d taberu_db < migrations/003_change_decimal_to_float.sql
 ```
+
+マイグレーションは backend 起動時（次節の `cargo run` 時）に自動適用される。
 
 ### 2. 環境変数を設定
 
@@ -99,35 +98,34 @@ npm run dev
 
 ## 本番デプロイ
 
-`docker-compose.prod.yml` で全サービスをまとめて起動します。
-
-ホストに Rust / cargo を入れなくても Docker だけで完結します。
+ホストに必要なのは Docker のみ（Rust / cargo / Node は不要）。
 
 ```bash
-# 1. ルートに .env を作成（テンプレートをコピーして値を埋める）
+# 1. .env を作成（POSTGRES_PASSWORD と CLAUDE_API_KEY を実値に書き換える）
 cp .env.example .env
-# エディタで POSTGRES_PASSWORD と CLAUDE_API_KEY を実値に書き換える
 
-# 2. マイグレーション適用 + sqlx クエリキャッシュ生成（初回のみ）
-#    内部で開発用 postgres を起動し、migrations/*.sql を順次適用してから
-#    backend/.sqlx/ を生成する Docker ワンショットツール。
-docker compose run --rm sqlx-prepare
-
-# （任意）生成された .sqlx/ をコミットしておくと次回以降スキップ可
-git add backend/.sqlx && git commit -m "chore: update sqlx query cache"
-
-# 3. prod イメージのビルド & 起動
+# 2. 起動（イメージビルド・DB マイグレーション適用すべて自動）
 docker compose -f docker-compose.prod.yml up -d --build
-
-# 4. prod 側 postgres にもマイグレーション適用（初回のみ）
-for f in migrations/*.sql; do
-  docker compose -f docker-compose.prod.yml exec -T postgres \
-    psql -U postgres -d taberu_db < "$f"
-done
 ```
 
-`backend/.sqlx/` が無いまま prod ビルドすると Dockerfile の早期チェックで
-止まり、上記コマンドの案内が表示されます。
+これだけ。更新時も `git pull && docker compose -f docker-compose.prod.yml up -d --build` だけで済む。
+マイグレーションは backend 起動時に `sqlx::migrate!` で自動適用される。
 
-詳細手順は [`docs/design.md`](docs/design.md) の「デプロイメント戦略」セクションを参照。
+### クエリを書き換えたとき（開発者向け）
+
+`backend/src/**/*.rs` 内の `sqlx::query!` / `query_as!` を追加・変更した場合のみ、
+オフラインビルド用のクエリキャッシュを再生成してコミットする。
+
+```bash
+docker compose run --rm sqlx-prepare
+git add backend/.sqlx
+git commit -m "chore: update sqlx query cache"
+```
+
+> ⚠️ 再生成忘れに注意。古い `.sqlx/` のままだとビルドは通るが、実 DB スキーマと
+> 乖離した型で動作する可能性がある。`.sqlx/` には SQL とスキーマ型情報のみで
+> シークレットや実データは含まれないので、公開リポジトリでもコミットして問題ない。
+
+詳細手順・バックアップ・トラブルシュートは [`docs/design.md`](docs/design.md) の
+「デプロイメント戦略」セクションを参照。
 

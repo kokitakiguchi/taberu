@@ -1,4 +1,5 @@
 # --- Build stage ---
+# ビルドコンテキストはリポジトリルート (docker-compose.prod.yml の context: . を参照)
 FROM rust:1-slim AS builder
 WORKDIR /app
 
@@ -7,19 +8,21 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Cargo.toml / Cargo.lock だけ先にコピーして依存クレートのビルドをキャッシュ
-COPY Cargo.toml Cargo.lock ./
+COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release \
     && rm -rf src
 
-# 本体ソースをコピー（.sqlx/ ディレクトリを含む）
-# 事前に `docker compose run --rm sqlx-prepare` で .sqlx/ を生成しておく必要あり
-COPY . .
-# .sqlx/ が無いまま SQLX_OFFLINE でビルドすると不可解な大量エラーになるため早期に止める
+# backend のソースと migrations/ をコピー
+# migrations/ は sqlx::migrate!("../migrations") で参照する
+COPY backend/ ./
+COPY migrations/ /migrations/
+
+# .sqlx/ はリポジトリにコミットされている前提（README 参照）
 RUN test -d .sqlx || { \
       echo ""; \
       echo "ERROR: backend/.sqlx/ is missing."; \
-      echo "  Run 'docker compose run --rm sqlx-prepare' from the project root before building this image."; \
+      echo "  Run 'docker compose run --rm sqlx-prepare' from the project root, then commit backend/.sqlx/."; \
       echo ""; \
       exit 1; \
     }

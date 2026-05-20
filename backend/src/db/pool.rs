@@ -1,7 +1,14 @@
 use sqlx::PgPool;
 
 pub async fn init(database_url: &str) -> PgPool {
-    PgPool::connect(database_url)
+    let pool = PgPool::connect(database_url)
         .await
-        .expect("failed to connect to database")
+        .expect("failed to connect to database");
+
+    sqlx::migrate!("../migrations")
+        .run(&pool)
+        .await
+        .expect("failed to run migrations");
+
+    pool
 }

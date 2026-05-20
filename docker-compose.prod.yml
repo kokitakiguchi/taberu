@@ -16,7 +16,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/taberu_db
       CLAUDE_API_KEY: "${CLAUDE_API_KEY:?CLAUDE_API_KEY is required}"
