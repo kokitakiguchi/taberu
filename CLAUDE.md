@@ -9,7 +9,7 @@
 
 - **何か**：食事写真を時系列で記録する Web アプリ
 - **構成**：Rust (Axum) + React (Vite + TS) + PostgreSQL + Claude Vision API
-- **状態**：計画フェーズ。Git 初期化済み（main ブランチ、初期コミット完了）。`backend/`・`frontend/`・`migrations/` は **未作成**
+- **状態**：MVP 実装済み（写真UP → AI分析 → DB保存 → 一覧表示が動作）。`backend/`・`frontend/`・`migrations/` は実装済み。残課題は Claude Vision の実分析確認など（[docs/次やること.md](docs/次やること.md) 参照）
 - **動作環境**：自宅サーバー（Ubuntu）、シングルユーザー（`user_id=1` 固定）
 - **学習トラック併走**：MVP を止めない範囲で MCP / Claude Skills を試す
 
@@ -27,14 +27,18 @@ taberu/
 ├── README.md            人間向け仕様書（設計・API・運用の正本）
 ├── .gitignore           Node / Rust / 機密 / uploads / OS / IDE
 ├── .devcontainer/       開発コンテナ定義（user-managed：エージェントは編集しない）
-├── backend/             Rust + Axum（未作成）
-├── frontend/            React + TS + Vite（未作成）
-├── migrations/          PostgreSQL マイグレーション SQL（未作成）
-├── docs/                設計メモ・学習ログ
-└── .claude/
+├── backend/             Rust + Axum
+├── frontend/            React + TS + Vite
+├── migrations/          PostgreSQL マイグレーション SQL
+├── docs/                設計メモ・学習ログ・バージョン運用方針
+└── .claude/             ※ gitignore（リポジトリ非追跡・ローカル管理）
+    ├── agents/          カスタムサブエージェント定義
     ├── rules/           領域別の詳細ルール（タスク開始時に該当を読む）
     └── skills/          Claude Skill 配置先（Phase 2 以降）
 ```
+
+> **`.claude/` はリポジトリ追跡対象外（gitignore）**。agents / rules はローカルにのみ存在し、git には含まれない。
+> clone しただけでは付いてこないため、別環境で使う場合は手動で配置する。
 
 ## 開発コマンド（環境構築後に有効）
 
@@ -49,7 +53,7 @@ taberu/
 | フロントエンド Lint | `cd frontend && npm run lint` |
 | DB 起動（Docker） | `docker-compose up -d postgres` |
 
-（注）コードが未着手のため、上記コマンドは `backend/` / `frontend/` をそれぞれ `cargo init` / `npm create vite@latest` で初期化した後に有効になります。
+（注）DB は `docker compose up -d postgres` で起動。migrations は backend 起動時に `sqlx::migrate!` で自動適用される（手動適用は不要）。
 
 ## タスク開始時のチェックリスト
 

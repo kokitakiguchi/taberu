@@ -34,3 +34,11 @@
 - [docs/multi-agent-strategy.md](multi-agent-strategy.md) に方針を整理
 - 方針：Phase 1 は組み込み Explore/Plan のみ、MVP 後にカスタムサブエージェントを 2〜3 体追加、その先で git worktree
 - 「3 回ルール」で自動化判断（同じ問いを 3 回手で投げたら固定化）
+
+## 2026-05-20 — main/develop 分岐の解消と `.claude/` の gitignore 運用確定
+
+- 状況：コードは `develop`（main+9 コミットの直線）、`.claude/`（agents 5 + rules 8）は `main` のみ追跡という分岐状態だった
+- やったこと：`develop` を `main` に FF 結合（コンフリクトなし）。`.claude/` は develop 由来の gitignore 設定をそのまま採用しリポジトリ非追跡に統一
+- 注意点：develop の作業ツリーには `.claude/agents`・`rules` の実ファイルが無かった（gitignore かつ git rm 済み）ため、main 版の実ファイルをローカルへ手動コピーして保全
+- ドキュメント整備：CLAUDE.md の「計画フェーズ・未作成」記述を実態へ更新、`docs/versioning.md` にバージョン運用方針を新規明文化（コード version の bump は今回せず）
+- 教訓：**gitignore 対象の運用ファイルはブランチ間で勝手に移動しない**。分岐統合時はディスク上の実ファイル有無を必ず確認する

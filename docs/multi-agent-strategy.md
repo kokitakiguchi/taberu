@@ -5,6 +5,24 @@
 
 ---
 
+## 現状（2026-05-20 更新）
+
+本ドキュメントは当初のたたき台。実際の運用は以下に進んでいる：
+
+- **`.claude/` はリポジトリ追跡対象外（gitignore）に変更**。agents / rules はローカル管理（git には含めない）。
+  → 下記テンプレや `.claude/agents/*.md` への参照は「ローカルファイル」を指す。
+- **カスタムサブエージェントは既に 5 体導入済み**（汎用的なレビュー／テスト系）：
+  - `code-reviewer` — コード品質レビュー
+  - `rust-react-refactorer` — レビュー＋リファクタ
+  - `security-vulnerability-auditor` — 脆弱性監査
+  - `test-writer` — テスト作成
+  - `docs-writer` — ドキュメント作成・更新
+- 当初候補だった `food-vision-tester` / `migration-reviewer` は未作成（必要になったら 3 回ルールで判断）。
+
+以下は導入当初の構想メモとして残す。
+
+---
+
 ## 1. Claude Code が提供する「複数エージェント」の選択肢
 
 | # | 仕組み | 何ができる | コスト感 |
