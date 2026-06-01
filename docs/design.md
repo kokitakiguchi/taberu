@@ -268,6 +268,11 @@ CREATE TABLE allergen_names (
 - allergens: JSON配列  — text_manual モードのみ
 ```
 
+> **画像サイズの上限（10MB）は 3 層で守る**：フロント（react-dropzone `maxSize`）が選択時点で弾き、
+> nginx は `client_max_body_size 12m`、backend は axum の `DefaultBodyLimit::max(11MB)` で受け、
+> ハンドラが 10MB 超を `400 INVALID_INPUT` で拒否する。
+> axum のデフォルトボディ上限は 2MB のため、これを引き上げないとスマホ写真（数 MB）が弾かれる点に注意。
+
 **レスポンス**（201 Created）：
 ```json
 {
