@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import type { FileRejection } from 'react-dropzone';
 import { createRecord } from '../api/records';
 import type { EntryMode, FoodRecord } from '../types';
 
@@ -8,16 +9,36 @@ type Props = {
   onUploaded: (record: FoodRecord) => void;
 };
 
+// バックエンドのハンドラ側チェック（10MB）と揃える
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
 const HINT: Record<Props['entryMode'], string> = {
   dish_photo: '料理写真をドラッグ＆ドロップ、またはクリックして選択',
   nutrition_label: '栄養成分ラベルの写真をドラッグ＆ドロップ、またはクリックして選択',
 };
 
+// react-dropzone の却下理由をユーザー向けメッセージに変換する
+function rejectionMessage(rejections: FileRejection[]): string {
+  const code = rejections[0]?.errors[0]?.code;
+  switch (code) {
+    case 'file-too-large':
+      return '画像サイズが大きすぎます（最大 10MB まで）。';
+    case 'file-invalid-type':
+      return 'JPEG または PNG 画像を選択してください。';
+    default:
+      return 'この画像は読み込めませんでした。';
+  }
+}
+
 export function ImageUpload({ entryMode, onUploaded }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const onDrop = useCallback(async (files: File[]) => {
+  const onDrop = useCallback(async (files: File[], rejections: FileRejection[]) => {
+    if (rejections.length > 0) {
+      setError(rejectionMessage(rejections));
+      return;
+    }
     const file = files[0];
     if (!file) return;
     setLoading(true);
@@ -38,7 +59,7 @@ export function ImageUpload({ entryMode, onUploaded }: Props) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'image/jpeg': [], 'image/png': [] },
-    maxSize: 10 * 1024 * 1024,
+    maxSize: MAX_IMAGE_BYTES,
     multiple: false,
     disabled: loading,
   });
