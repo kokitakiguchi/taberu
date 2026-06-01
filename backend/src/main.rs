@@ -8,6 +8,7 @@ mod services;
 use std::sync::Arc;
 
 use axum::{
+    extract::DefaultBodyLimit,
     routing::{delete, get, post, put},
     Router,
 };
@@ -69,6 +70,9 @@ async fn main() {
         .route("/api/stats/calories", get(handlers::stats::calories_stats))
         .route("/api/stats/nutrients", get(handlers::stats::nutrients_stats))
         .nest_service("/uploads", ServeDir::new(&config.upload_dir))
+        // axum のデフォルトボディ上限は 2MB。スマホ写真（数 MB）が弾かれるため、
+        // ハンドラ側の 10MB チェックに合わせて余裕を持たせる（multipart のオーバーヘッド込み）。
+        .layer(DefaultBodyLimit::max(11 * 1024 * 1024))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
