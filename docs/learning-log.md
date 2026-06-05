@@ -40,7 +40,7 @@
 - 状況：コードは `develop`（main+9 コミットの直線）、`.claude/`（agents 5 + rules 8）は `main` のみ追跡という分岐状態だった
 - やったこと：`develop` を `main` に FF 結合（コンフリクトなし）。`.claude/` は develop 由来の gitignore 設定をそのまま採用しリポジトリ非追跡に統一
 - 注意点：develop の作業ツリーには `.claude/agents`・`rules` の実ファイルが無かった（gitignore かつ git rm 済み）ため、main 版の実ファイルをローカルへ手動コピーして保全
-- ドキュメント整備：CLAUDE.md の「計画フェーズ・未作成」記述を実態へ更新、`docs/versioning.md` にバージョン運用方針を新規明文化（コード version の bump は今回せず）
+- ドキュメント整備：CLAUDE.md の古い計画フェーズ記述を実態へ更新、`docs/versioning.md` にバージョン運用方針を新規明文化（コード version の bump は今回せず）
 - 教訓：**gitignore 対象の運用ファイルはブランチ間で勝手に移動しない**。分岐統合時はディスク上の実ファイル有無を必ず確認する
 
 ## 2026-06-02 — 本番デプロイ後の不具合 4 件を切り分け

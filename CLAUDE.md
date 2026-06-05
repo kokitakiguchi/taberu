@@ -1,104 +1,98 @@
 # CLAUDE.md — Taberu 運用ガイド（Claude Code 向け）
 
-このファイルは Claude Code が **自律的に作業するための運用ガイド** です。
-人間向けのプロジェクト仕様（設計・API・スキーマ・運用すべての正本）は [README.md](README.md) に集約しています。
+このファイルは Claude Code が Taberu で作業するときの運用ガイドです。仕様の詳細は [README.md](README.md) と [docs/design.md](docs/design.md)、実際の正本はコードと `migrations/` です。
 
----
+## プロジェクト概要
 
-## プロジェクト概要（30秒で把握）
+- **何か**：食事記録と栄養分析の個人向け Web アプリ
+- **構成**：Rust (Axum) + React (Vite + TypeScript) + PostgreSQL + Claude API
+- **状態**：MVP 機能は実装済み。次の中心は実 API 確認、運用改善、UI 改善、コスト最適化
+- **運用**：シングルユーザー、`user_id = 1` 固定
+- **学習トラック**：MCP / Claude Skills / Agent SDK は本体機能を壊さない範囲で個別に試す
 
-- **何か**：食事写真を時系列で記録する Web アプリ
-- **構成**：Rust (Axum) + React (Vite + TS) + PostgreSQL + Claude Vision API
-- **状態**：MVP 実装済み（写真UP → AI分析 → DB保存 → 一覧表示が動作）。`backend/`・`frontend/`・`migrations/` は実装済み。残課題は Claude Vision の実分析確認など（[docs/次やること.md](docs/次やること.md) 参照）
-- **動作環境**：自宅サーバー（Ubuntu）、シングルユーザー（`user_id=1` 固定）
-- **学習トラック併走**：MVP を止めない範囲で MCP / Claude Skills を試す
+## 判断軸
 
-## 最優先の判断軸（迷ったらここに戻る）
-
-1. **MVP ファースト** — 「写真UP → AI分析 → DB保存 → 一覧表示」が動くまで他を増やさない
-2. **素直な実装** — 学習目的のため、抽象化や汎用化は最小限
-3. **新技術は MVP 後** — MCP / Skills / Agent SDK は本体機能が動いてから
+1. **コード実態を優先** — ドキュメントより実装と migration を正とする
+2. **MVP を壊さない** — 既に動く記録・分析・表示・削除を回帰させない
+3. **素直な実装** — 学習目的でも過剰な抽象化や未使用の汎用化を避ける
+4. **新技術は隔離して試す** — MCP / Skills / Agent SDK は小さく検証してから統合判断する
 
 ## ディレクトリ規約
 
 ```
 taberu/
 ├── CLAUDE.md            このファイル（エージェント運用ガイド）
-├── README.md            人間向け仕様書（設計・API・運用の正本）
-├── .gitignore           Node / Rust / 機密 / uploads / OS / IDE
-├── .devcontainer/       開発コンテナ定義（user-managed：エージェントは編集しない）
+├── README.md            入口ドキュメント
+├── docs/                詳細仕様、運用メモ、学習ログ
 ├── backend/             Rust + Axum
-├── frontend/            React + TS + Vite
-├── migrations/          PostgreSQL マイグレーション SQL
-├── docs/                設計メモ・学習ログ・バージョン運用方針
-└── .claude/             ※ gitignore（リポジトリ非追跡・ローカル管理）
+├── frontend/            React + TypeScript + Vite
+├── migrations/          PostgreSQL migration SQL
+└── .claude/             gitignore 対象のローカル AI 指示ドキュメント
     ├── agents/          カスタムサブエージェント定義
-    ├── rules/           領域別の詳細ルール（タスク開始時に該当を読む）
-    └── skills/          Claude Skill 配置先（Phase 2 以降）
+    └── rules/           領域別ルール
 ```
 
-> **`.claude/` はリポジトリ追跡対象外（gitignore）**。agents / rules はローカルにのみ存在し、git には含まれない。
-> clone しただけでは付いてこないため、別環境で使う場合は手動で配置する。
+`.claude/` は `.gitignore` 対象で git 追跡外です。ただし、このローカル環境ではユーザー指定があれば編集対象に含めます。別環境へは git 経由で同期されません。
 
-## 開発コマンド（環境構築後に有効）
+## 開発コマンド
+
+ホストには Rust がインストールされていない前提です。`cargo` / `rustc` / `cargo clippy` / `cargo fmt` は Dev Container 内、または Rust が入ったコンテナ内で実行してください。ホスト側で直接 Rust コマンドを実行しようとしないこと。
 
 | 用途 | コマンド |
 |------|---------|
+| DB 起動 | `docker compose up -d postgres` |
 | バックエンド起動 | `cd backend && cargo run` |
 | バックエンドテスト | `cd backend && cargo test` |
-| Rust Lint | `cd backend && cargo clippy -- -D warnings` |
-| Rust フォーマット | `cd backend && cargo fmt` |
+| Rust lint | `cd backend && cargo clippy -- -D warnings` |
+| Rust format | `cd backend && cargo fmt` |
 | フロントエンド起動 | `cd frontend && npm run dev` |
 | 型チェック | `cd frontend && npm run typecheck` |
-| フロントエンド Lint | `cd frontend && npm run lint` |
-| DB 起動（Docker） | `docker-compose up -d postgres` |
+| フロントエンド lint | `cd frontend && npm run lint` |
+| sqlx cache 更新 | `docker compose run --rm sqlx-prepare` |
 
-（注）DB は `docker compose up -d postgres` で起動。migrations は backend 起動時に `sqlx::migrate!` で自動適用される（手動適用は不要）。
+Migration は backend 起動時に `sqlx::migrate!` で自動適用されます。通常は手動で `psql < migrations/*.sql` を実行しません。
 
-## タスク開始時のチェックリスト
+## タスク開始時
 
-1. 該当領域のルールを読む（下の表を参照）
-2. 大きめの変更（3 ファイル以上・スキーマ変更・依存追加）は **Plan モード** で計画提示
-3. 既存コードに触れる前に近接ファイルを Read で確認
-4. DB スキーマ変更は新規マイグレーションを追加（既存ファイル編集禁止）
+1. 関係する `.claude/rules/*.md` を読む
+2. 既存コードや近接ドキュメントを確認する
+3. 3 ファイル以上、schema、依存追加、アーキ判断を含む場合は計画を提示する
+4. `.devcontainer/` と git identity はユーザー管理領域として扱う
 
-## 領域別詳細ルール
+## 領域別ルール
 
 | 領域 | ルールファイル |
 |------|---------------|
-| アーキ全体・データフロー | [.claude/rules/architecture.md](.claude/rules/architecture.md) |
-| Rust バックエンド | [.claude/rules/rust-backend.md](.claude/rules/rust-backend.md) |
-| React フロントエンド | [.claude/rules/frontend.md](.claude/rules/frontend.md) |
-| データベース | [.claude/rules/database.md](.claude/rules/database.md) |
-| Claude API（画像分析） | [.claude/rules/ai-integration.md](.claude/rules/ai-integration.md) |
-| MCP・Claude Skills | [.claude/rules/mcp-skills.md](.claude/rules/mcp-skills.md) |
-| 学習トラック判断 | [.claude/rules/learning-track.md](.claude/rules/learning-track.md) |
-| ワークフロー・コミット | [.claude/rules/workflow.md](.claude/rules/workflow.md) |
+| アーキテクチャ | [.claude/rules/architecture.md](.claude/rules/architecture.md) |
+| Rust backend | [.claude/rules/rust-backend.md](.claude/rules/rust-backend.md) |
+| React frontend | [.claude/rules/frontend.md](.claude/rules/frontend.md) |
+| Database | [.claude/rules/database.md](.claude/rules/database.md) |
+| Claude API | [.claude/rules/ai-integration.md](.claude/rules/ai-integration.md) |
+| MCP / Skills | [.claude/rules/mcp-skills.md](.claude/rules/mcp-skills.md) |
+| 学習トラック | [.claude/rules/learning-track.md](.claude/rules/learning-track.md) |
+| ワークフロー | [.claude/rules/workflow.md](.claude/rules/workflow.md) |
 
-## 絶対やってはいけないこと（NG リスト）
+## NG リスト
 
-- `.env` / `CLAUDE_API_KEY` などの機密情報をコミット
-- DB に **絶対パス** を保存（必ず `uploads/...` の相対パス）
-- マルチユーザー機能の前倒し実装（現状は `user_id = 1` 固定運用）
-- MVP が動いていない状態で MCP / Skills 実装に着手
-- 既存マイグレーションファイルの編集（必ず新規追加で対応）
-- 画像処理・栄養計算ロジックの自作（既存ライブラリ + Claude API で済ませる）
-- `--no-verify` などでフックをスキップしてコミット
-- **`.devcontainer/` 配下の自律編集**（ユーザー管理領域。要望があれば内容提案のみ、ファイル編集は許可後）
-- **`git config user.name` / `user.email` の読み書き**（git identity はユーザーが自分で管理）
+- `.env`、API key、DB password などの機密情報をコミットする
+- DB に絶対パスを保存する。画像は必ず `uploads/...` の相対パス
+- 既存 migration を編集する。変更は新規 migration で行う
+- フロントエンドから Claude API を直接呼ぶ
+- `--no-verify` でフックをスキップしてコミットする
+- `.devcontainer/` を自律編集する
+- `git config user.name` / `user.email` を読み書きする
+- 実 API への画像送信をユーザー確認なしにテスト目的で行う
 
-## 完了条件（Definition of Done）
+## 完了条件
 
-タスクを「完了」と報告する前に確認：
-
-- [ ] 対象機能が手元で動く（`curl` またはブラウザで確認）
-- [ ] `cargo test` / `cargo clippy` / `npm run typecheck` が通る
-- [ ] 触った領域の `.claude/rules/*.md` の規約に従っている
-- [ ] 新規依存を追加した場合、コミットメッセージに理由を記載
-- [ ] 学習トラックで試したこと（MCP / Skills 等）は `docs/learning-log.md` に 1 行メモ
+- 変更対象のコードまたはドキュメントが現実装と矛盾していない
+- コード変更時は該当する `cargo test` / `cargo clippy` / `npm run typecheck` を実行または未実行理由を報告
+- API、DB、AI、運用手順を変えた場合は `README.md` / `docs/design.md` / `.claude/rules/*` を同期
+- 学習トラックで試したことは [docs/learning-log.md](docs/learning-log.md) に短く記録
 
 ## 困ったとき
 
-- 設計判断で迷ったら [README.md](README.md) の該当セクションを根拠にする
-- 学習トラックが MVP を妨げ始めたら [.claude/rules/learning-track.md](.claude/rules/learning-track.md) の「撤退判断」を読む
-- スキーマや API 仕様の **正本** は [README.md](README.md)。このファイルはあくまで運用ガイド
+- 実装仕様：コード、`migrations/`
+- 入口：README.md
+- 詳細仕様：docs/design.md
+- AI/エージェント運用：CLAUDE.md、`.claude/rules/`

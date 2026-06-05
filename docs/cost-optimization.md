@@ -1,7 +1,7 @@
 # AI コスト最適化メモ（将来の改善候補）
 
-Taberu の Claude API 利用コストを下げるための **未実装の候補** をまとめる。
-本ファイルは「検討用の棚卸し」であり、ここに書いた項目はまだコードに入っていない。
+Taberu の Claude API 利用コストを下げるための候補をまとめる。
+本ファイルは「検討用の棚卸し」です。`nutrition_label` の Haiku 切替だけ実装済みで、それ以外は未実装です。
 着手するときは各項目を個別タスク化し、効果をサンプルで確認してから本体に統合する
 （[.claude/rules/ai-integration.md](../.claude/rules/ai-integration.md) / [learning-track.md](../.claude/rules/learning-track.md) に従う）。
 
@@ -14,7 +14,7 @@ Taberu の Claude API 利用コストを下げるための **未実装の候補*
 | `text_ai` | テキスト | `claude-3-5-sonnet-20241022` | 料理名・説明から推定 |
 | `text_manual` | なし | — | API 呼び出しなし |
 
-実装の正本：`backend/src/services/ai.rs`（`MODEL_DEFAULT` / `MODEL_LABEL`）、
+モデル実装の正本：`backend/src/services/ai.rs`（`MODEL_DEFAULT` / `MODEL_LABEL`）、
 画像保存・リサイズは `backend/src/services/storage.rs`。
 
 ## 改善候補
