@@ -42,3 +42,10 @@
 - 注意点：develop の作業ツリーには `.claude/agents`・`rules` の実ファイルが無かった（gitignore かつ git rm 済み）ため、main 版の実ファイルをローカルへ手動コピーして保全
 - ドキュメント整備：CLAUDE.md の「計画フェーズ・未作成」記述を実態へ更新、`docs/versioning.md` にバージョン運用方針を新規明文化（コード version の bump は今回せず）
 - 教訓：**gitignore 対象の運用ファイルはブランチ間で勝手に移動しない**。分岐統合時はディスク上の実ファイル有無を必ず確認する
+
+## 2026-06-05 — nutrition_label を Haiku に切替えて Vision コスト削減
+
+- やったこと：栄養成分ラベル分析（nutrition_label）のモデルを `claude-3-5-sonnet-20241022` → `claude-haiku-4-5-20251001` に変更（`ai.rs` で `is_nutrition_label` に応じて model を分岐）
+- 狙い：ラベルは印刷値の読み取りのみで高い推論力が不要。Vision の枠組みは維持したまま安価モデルでコスト削減
+- 見送り：ローカル OCR（Tesseract）はネイティブ依存・日本語精度検証が重いので今回は不採用
+- 次：その他の AI 分析のコスト最適化案を [docs/cost-optimization.md](cost-optimization.md) に整理（画像ダウンスケール強化・text_ai の安価モデル化・プロンプトキャッシュ等。未実装）

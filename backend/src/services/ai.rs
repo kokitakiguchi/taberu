@@ -28,6 +28,11 @@ impl AnalysisResult {
     }
 }
 
+// 料理推定・テキスト推定用（推定に推論力が要るため標準モデル）
+const MODEL_DEFAULT: &str = "claude-3-5-sonnet-20241022";
+// 栄養ラベル読み取り用（印刷値の読み取りのみ＝安価モデルで十分。Haiku 4.5 は Vision 対応）
+const MODEL_LABEL: &str = "claude-haiku-4-5-20251001";
+
 const PROMPT_SUFFIX: &str = "JSONのみを返し、他の文章は不要です。アレルゲンは特定原材料7品目（えび、かに、小麦、そば、卵、乳、落花生）と推奨表示21品目から該当するものを列挙してください。";
 
 const JSON_SCHEMA: &str = r#"{
@@ -66,8 +71,10 @@ pub async fn analyze_image(
         )
     };
 
+    let model = if is_nutrition_label { MODEL_LABEL } else { MODEL_DEFAULT };
+
     let body = json!({
-        "model": "claude-3-5-sonnet-20241022",
+        "model": model,
         "max_tokens": 1024,
         "messages": [{
             "role": "user",
@@ -110,7 +117,7 @@ pub async fn analyze_text(
     );
 
     let body = json!({
-        "model": "claude-3-5-sonnet-20241022",
+        "model": MODEL_DEFAULT,
         "max_tokens": 1024,
         "messages": [{
             "role": "user",
