@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { createRecord } from '../api/records';
 import type { EntryMode, FoodRecord } from '../types';
-import { EMPTY_MANUAL_VALUES, ManualNutritionForm } from './ManualNutritionForm';
-import type { ManualValues } from './ManualNutritionForm';
+import { ManualNutritionForm } from './ManualNutritionForm';
+import { EMPTY_MANUAL_VALUES } from './manualNutrition';
+import type { ManualValues } from './manualNutrition';
 
 type Props = {
   entryMode: Extract<EntryMode, 'text_ai' | 'text_manual'>;
