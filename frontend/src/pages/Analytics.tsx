@@ -4,54 +4,132 @@ import { CalorieChart } from '../components/CalorieChart';
 import { NutrientChart } from '../components/NutrientChart';
 import type { CaloriesStats, NutrientsStats } from '../types';
 
+type Period = 'week' | 'month';
+
+const PERIOD_LABEL: Record<Period, string> = {
+  week: '直近7日',
+  month: '直近30日',
+};
+
+function formatNumber(value: number | null | undefined, digits = 0) {
+  if (value == null || Number.isNaN(value)) return '—';
+  return value.toFixed(digits);
+}
+
 export function Analytics() {
-  const [period, setPeriod] = useState<'week' | 'month'>('week');
+  const [period, setPeriod] = useState<Period>('week');
   const [calories, setCalories] = useState<CaloriesStats | null>(null);
   const [nutrients, setNutrients] = useState<NutrientsStats | null>(null);
+  const [caloriesLoading, setCaloriesLoading] = useState(false);
+  const [nutrientsLoading, setNutrientsLoading] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
+  const hasNutrients = nutrients != null && nutrients.total_calories > 0;
 
   useEffect(() => {
-    fetchCaloriesStats(period).then(setCalories);
+    setCaloriesLoading(true);
+    fetchCaloriesStats(period)
+      .then(setCalories)
+      .finally(() => setCaloriesLoading(false));
   }, [period]);
 
   useEffect(() => {
-    fetchNutrientsStats(today).then(setNutrients);
+    setNutrientsLoading(true);
+    fetchNutrientsStats(today)
+      .then(setNutrients)
+      .finally(() => setNutrientsLoading(false));
   }, [today]);
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: 16 }}>
-      <h2>分析ダッシュボード</h2>
+    <main className="page-shell">
+      <header className="page-header">
+        <div>
+          <h1 className="page-title">分析ダッシュボード</h1>
+          <p className="page-subtitle">カロリー推移と今日のPFCバランスを確認できます。</p>
+        </div>
 
-      <section>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <div className="segmented-control" role="group" aria-label="集計期間">
           <button
+            type="button"
             onClick={() => setPeriod('week')}
-            style={{ fontWeight: period === 'week' ? 'bold' : 'normal' }}
+            className={period === 'week' ? 'is-active' : ''}
+            aria-pressed={period === 'week'}
           >
             週
           </button>
           <button
+            type="button"
             onClick={() => setPeriod('month')}
-            style={{ fontWeight: period === 'month' ? 'bold' : 'normal' }}
+            className={period === 'month' ? 'is-active' : ''}
+            aria-pressed={period === 'month'}
           >
             月
           </button>
         </div>
-        <h3>カロリー推移</h3>
-        {calories ? (
-          <>
-            <CalorieChart data={calories.data} />
-            <p>平均：{calories.average_calories.toFixed(0)} kcal/日</p>
-          </>
-        ) : (
-          <p>読み込み中...</p>
-        )}
+      </header>
+
+      <section className="stat-grid" aria-label="主要指標">
+        <div className="stat-card">
+          <span className="stat-label">{PERIOD_LABEL[period]}の平均</span>
+          <div className="stat-value">
+            {formatNumber(calories?.average_calories)}
+            <span className="stat-unit">kcal/日</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">今日の合計</span>
+          <div className="stat-value">
+            {formatNumber(nutrients?.total_calories)}
+            <span className="stat-unit">kcal</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">タンパク質</span>
+          <div className="stat-value">
+            {formatNumber(nutrients?.protein_g, 1)}
+            <span className="stat-unit">g</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-label">脂質 / 炭水化物</span>
+          <div className="stat-value">
+            {formatNumber(nutrients?.fat_g, 1)}
+            <span className="stat-unit">g</span>
+            <span className="stat-unit">/ {formatNumber(nutrients?.carbs_g, 1)}g</span>
+          </div>
+        </div>
       </section>
 
-      <section style={{ marginTop: 24 }}>
-        <h3>今日の栄養バランス</h3>
-        {nutrients ? <NutrientChart stats={nutrients} /> : <p>読み込み中...</p>}
-      </section>
-    </div>
+      <div className="analytics-grid">
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">カロリー推移</h2>
+              <p className="panel-caption">{PERIOD_LABEL[period]}の記録から日別合計を表示します。</p>
+            </div>
+          </div>
+          {caloriesLoading && !calories ? (
+            <div className="loading-state">読み込み中</div>
+          ) : (
+            <CalorieChart data={calories?.data ?? []} />
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">今日の栄養バランス</h2>
+              <p className="panel-caption">{today} のPFC比率</p>
+            </div>
+          </div>
+          {nutrientsLoading && !nutrients ? (
+            <div className="loading-state">読み込み中</div>
+          ) : hasNutrients ? (
+            <NutrientChart stats={nutrients} />
+          ) : (
+            <div className="empty-state">記録がないため分析できません。</div>
+          )}
+        </section>
+      </div>
+    </main>
   );
 }

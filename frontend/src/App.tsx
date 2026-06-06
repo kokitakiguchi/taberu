@@ -6,11 +6,11 @@ import './styles/global.css';
 export default function App() {
   return (
     <Router>
-      <nav style={{ background: '#4f8ef7', padding: '8px 16px', display: 'flex', gap: 16 }}>
-        <Link to="/" style={{ color: '#fff', textDecoration: 'none', fontWeight: 'bold' }}>
+      <nav className="app-nav">
+        <Link to="/" className="app-nav__brand">
           Taberu
         </Link>
-        <Link to="/analytics" style={{ color: '#fff', textDecoration: 'none' }}>
+        <Link to="/analytics" className="app-nav__link">
           分析
         </Link>
       </nav>
