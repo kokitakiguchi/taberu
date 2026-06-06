@@ -63,6 +63,8 @@ async fn main() {
     };
 
     let app = Router::new()
+        // コンテナ / リバースプロキシからの死活監視用。DB や外部 API に依存しない liveness。
+        .route("/health", get(|| async { "ok" }))
         .route("/api/records", post(handlers::records::create_record))
         .route("/api/records", get(handlers::records::list_records))
         .route("/api/records/:id", put(handlers::records::update_record))
