@@ -1,22 +1,16 @@
+import type { CSSProperties } from 'react';
+
 type Props = {
   allergens: string[];
+  style?: CSSProperties;
 };
 
-export function AllergenBadges({ allergens }: Props) {
+export function AllergenBadges({ allergens, style }: Props) {
   if (allergens.length === 0) return null;
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+    <div className="chip-list" style={style}>
       {allergens.map((a) => (
-        <span
-          key={a}
-          style={{
-            background: '#fff3cd',
-            border: '1px solid #ffc107',
-            borderRadius: 4,
-            padding: '2px 6px',
-            fontSize: 12,
-          }}
-        >
+        <span key={a} className="chip chip-allergen">
           ⚠ {a}
         </span>
       ))}

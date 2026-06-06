@@ -14,6 +14,11 @@ pub struct NutrientsQuery {
     pub date: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct AllergensQuery {
+    pub period: Option<String>, // "week" | "month"
+}
+
 pub async fn calories_stats(
     State(state): State<AppState>,
     Query(params): Query<CaloriesQuery>,
@@ -100,5 +105,77 @@ pub async fn nutrients_stats(
             "fat_percent": (fat_pct * 10.0).round() / 10.0,
             "carbs_percent": (carbs_pct * 10.0).round() / 10.0
         }
+    })))
+}
+
+pub async fn allergens_stats(
+    State(state): State<AppState>,
+    Query(params): Query<AllergensQuery>,
+) -> Result<Json<Value>, AppError> {
+    let days: i64 = match params.period.as_deref() {
+        Some("month") => 30,
+        _ => 7,
+    };
+
+    // JSONB 配列を CROSS JOIN LATERAL で行展開して集計。
+    // 空配列 `[]` の行は 0 行になり自然に除外される。
+    // allergen_names と LEFT JOIN し category を付与（マスタ外は NULL）。
+    let ranking_rows = sqlx::query!(
+        r#"SELECT a.allergen AS "allergen!", an.category, COUNT(*) AS "count!"
+           FROM food_records fr
+           CROSS JOIN LATERAL jsonb_array_elements_text(fr.allergens) AS a(allergen)
+           LEFT JOIN allergen_names an ON an.name = a.allergen
+           WHERE fr.user_id = 1
+             AND fr.created_at >= NOW() - INTERVAL '1 day' * $1::bigint
+           GROUP BY a.allergen, an.category
+           ORDER BY COUNT(*) DESC, a.allergen"#,
+        days
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    // 日別: 日ごとに distinct アレルゲンを配列化。出現がある日のみ返す（空日埋めはフロント）。
+    let daily_rows = sqlx::query!(
+        r#"SELECT day AS "day!", ARRAY_AGG(DISTINCT allergen ORDER BY allergen) AS "allergens!"
+           FROM (
+             SELECT DATE(fr.created_at) AS day, a.allergen
+             FROM food_records fr
+             CROSS JOIN LATERAL jsonb_array_elements_text(fr.allergens) AS a(allergen)
+             WHERE fr.user_id = 1
+               AND fr.created_at >= NOW() - INTERVAL '1 day' * $1::bigint
+           ) t
+           GROUP BY day
+           ORDER BY day"#,
+        days
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    let ranking: Vec<Value> = ranking_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "name": r.allergen,
+                "category": r.category,
+                "count": r.count,
+            })
+        })
+        .collect();
+
+    let daily: Vec<Value> = daily_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "date": r.day.to_string(),
+                "allergens": r.allergens,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "period": params.period.unwrap_or_else(|| "week".to_string()),
+        "days": days,
+        "ranking": ranking,
+        "daily": daily,
     })))
 }

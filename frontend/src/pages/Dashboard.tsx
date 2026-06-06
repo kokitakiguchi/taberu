@@ -45,7 +45,7 @@ export function Dashboard() {
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: 16 }}>
+    <div className="page">
       <h1 style={{ fontSize: 24, marginBottom: 16 }}>Taberu</h1>
 
       <EntryModeSelector value={entryMode} onChange={setEntryMode} />

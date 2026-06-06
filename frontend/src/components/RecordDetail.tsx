@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { deleteRecord, updateRecord } from '../api/records';
 import type { FoodRecord } from '../types';
+import { AllergenBadges } from './AllergenBadges';
 import { AllergenEditor } from './AllergenEditor';
 import { NutritionInfo } from './NutritionInfo';
 
@@ -44,7 +45,7 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
   }
 
   return (
-    <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, display: 'flex', gap: 12 }}>
+    <div className="card" style={{ display: 'flex', gap: 12 }}>
       {record.image_path && (
         <img
           src={`${BASE_URL}/${record.image_path}`}
@@ -61,7 +62,7 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setEditing(!editing)}>編集</button>
-            <button onClick={handleDelete} style={{ color: 'red' }}>削除</button>
+            <button className="btn-danger" onClick={handleDelete}>削除</button>
           </div>
         </div>
 
@@ -80,15 +81,7 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
             onUpdated={onUpdated}
           />
         ) : (
-          allergens.length > 0 && (
-            <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {allergens.map((a) => (
-                <span key={a} style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 12, padding: '2px 8px', fontSize: 12 }}>
-                  ⚠️ {a}
-                </span>
-              ))}
-            </div>
-          )
+          <AllergenBadges allergens={allergens} style={{ marginTop: 4 }} />
         )}
 
         {editing && (
@@ -100,10 +93,10 @@ export function RecordDetail({ record, onDeleted, onUpdated }: Props) {
               style={{ width: '100%', boxSizing: 'border-box' }}
               placeholder="メモ"
             />
-            <button onClick={handleSaveNotes} disabled={saving}>
+            <button className="btn-primary" onClick={handleSaveNotes} disabled={saving} style={{ marginTop: 6 }}>
               {saving ? '保存中...' : 'メモを保存'}
             </button>
-            <button onClick={() => setEditing(false)} style={{ marginLeft: 8 }}>閉じる</button>
+            <button className="btn-ghost" onClick={() => setEditing(false)} style={{ marginLeft: 8 }}>閉じる</button>
           </div>
         )}
         {!editing && record.notes && (

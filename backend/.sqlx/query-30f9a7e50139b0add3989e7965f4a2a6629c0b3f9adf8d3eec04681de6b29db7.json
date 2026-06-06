@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT day AS \"day!\", ARRAY_AGG(DISTINCT allergen ORDER BY allergen) AS \"allergens!\"\n           FROM (\n             SELECT DATE(fr.created_at) AS day, a.allergen\n             FROM food_records fr\n             CROSS JOIN LATERAL jsonb_array_elements_text(fr.allergens) AS a(allergen)\n             WHERE fr.user_id = 1\n               AND fr.created_at >= NOW() - INTERVAL '1 day' * $1::bigint\n           ) t\n           GROUP BY day\n           ORDER BY day",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "allergens!",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "30f9a7e50139b0add3989e7965f4a2a6629c0b3f9adf8d3eec04681de6b29db7"
+}

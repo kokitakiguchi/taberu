@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { CaloriesStats, FoodRecord, NutrientsStats, RecordsResponse, UpdateRecordPayload } from '../types';
+import type { AllergensStats, CaloriesStats, FoodRecord, NutrientsStats, RecordsResponse, UpdateRecordPayload } from '../types';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
@@ -32,5 +32,10 @@ export async function fetchCaloriesStats(period: 'week' | 'month'): Promise<Calo
 
 export async function fetchNutrientsStats(date: string): Promise<NutrientsStats> {
   const { data } = await api.get<NutrientsStats>('/api/stats/nutrients', { params: { date } });
+  return data;
+}
+
+export async function fetchAllergensStats(period: 'week' | 'month'): Promise<AllergensStats> {
+  const { data } = await api.get<AllergensStats>('/api/stats/allergens', { params: { period } });
   return data;
 }

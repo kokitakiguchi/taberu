@@ -37,23 +37,11 @@ export function AllergenEditor({ recordId, allergens, onUpdated }: Props) {
 
   return (
     <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>アレルゲン</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+      <div className="text-muted" style={{ fontSize: 12, marginBottom: 4 }}>アレルゲン</div>
+      <div className="chip-list" style={{ marginBottom: 6 }}>
         {list.map((a) => (
-          <span
-            key={a}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              background: '#fff3cd',
-              border: '1px solid #ffc107',
-              borderRadius: 12,
-              padding: '2px 8px',
-              fontSize: 12,
-            }}
-          >
-            ⚠️ {a}
+          <span key={a} className="chip chip-allergen">
+            ⚠ {a}
             <button
               onClick={() => remove(a)}
               disabled={saving}
@@ -64,7 +52,7 @@ export function AllergenEditor({ recordId, allergens, onUpdated }: Props) {
             </button>
           </span>
         ))}
-        {list.length === 0 && <span style={{ fontSize: 12, color: '#aaa' }}>なし</span>}
+        {list.length === 0 && <span className="text-muted" style={{ fontSize: 12 }}>なし</span>}
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <input
@@ -72,9 +60,9 @@ export function AllergenEditor({ recordId, allergens, onUpdated }: Props) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), add())}
           placeholder="アレルゲンを追加"
-          style={{ flex: 1, padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
+          style={{ flex: 1 }}
         />
-        <button onClick={add} disabled={saving || !input.trim()} style={{ padding: '4px 10px', fontSize: 13 }}>
+        <button className="btn-primary" onClick={add} disabled={saving || !input.trim()}>
           {saving ? '...' : '追加'}
         </button>
       </div>
