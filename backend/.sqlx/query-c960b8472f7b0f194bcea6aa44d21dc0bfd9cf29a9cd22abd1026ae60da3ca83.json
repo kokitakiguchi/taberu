@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.allergen AS \"allergen!\", an.category, COUNT(*) AS \"count!\"\n           FROM food_records fr\n           CROSS JOIN LATERAL jsonb_array_elements_text(fr.allergens) AS a(allergen)\n           LEFT JOIN allergen_names an ON an.name = a.allergen\n           WHERE fr.user_id = 1\n             AND fr.created_at >= NOW() - INTERVAL '1 day' * $1::bigint\n           GROUP BY a.allergen, an.category\n           ORDER BY COUNT(*) DESC, a.allergen",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "allergen!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "category",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      true,
+      null
+    ]
+  },
+  "hash": "c960b8472f7b0f194bcea6aa44d21dc0bfd9cf29a9cd22abd1026ae60da3ca83"
+}

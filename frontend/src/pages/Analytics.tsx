@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { fetchCaloriesStats, fetchNutrientsStats } from '../api/records';
+import { fetchAllergensStats, fetchCaloriesStats, fetchNutrientsStats } from '../api/records';
+import { AllergenStats } from '../components/AllergenStats';
 import { CalorieChart } from '../components/CalorieChart';
 import { NutrientChart } from '../components/NutrientChart';
-import type { CaloriesStats, NutrientsStats } from '../types';
+import type { AllergensStats, CaloriesStats, NutrientsStats } from '../types';
 
 type Period = 'week' | 'month';
 
@@ -20,8 +21,10 @@ export function Analytics() {
   const [period, setPeriod] = useState<Period>('week');
   const [calories, setCalories] = useState<CaloriesStats | null>(null);
   const [nutrients, setNutrients] = useState<NutrientsStats | null>(null);
+  const [allergens, setAllergens] = useState<AllergensStats | null>(null);
   const [caloriesLoading, setCaloriesLoading] = useState(false);
   const [nutrientsLoading, setNutrientsLoading] = useState(false);
+  const [allergensLoading, setAllergensLoading] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const hasNutrients = nutrients != null && nutrients.total_calories > 0;
 
@@ -30,6 +33,10 @@ export function Analytics() {
     fetchCaloriesStats(period)
       .then(setCalories)
       .finally(() => setCaloriesLoading(false));
+    setAllergensLoading(true);
+    fetchAllergensStats(period)
+      .then(setAllergens)
+      .finally(() => setAllergensLoading(false));
   }, [period]);
 
   useEffect(() => {
@@ -125,6 +132,22 @@ export function Analytics() {
             <div className="loading-state">読み込み中</div>
           ) : hasNutrients ? (
             <NutrientChart stats={nutrients} />
+          ) : (
+            <div className="empty-state">記録がないため分析できません。</div>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="panel-title">アレルゲン</h2>
+              <p className="panel-caption">{PERIOD_LABEL[period]}の記録に含まれるアレルゲン</p>
+            </div>
+          </div>
+          {allergensLoading && !allergens ? (
+            <div className="loading-state">読み込み中</div>
+          ) : allergens ? (
+            <AllergenStats stats={allergens} />
           ) : (
             <div className="empty-state">記録がないため分析できません。</div>
           )}

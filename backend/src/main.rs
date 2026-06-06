@@ -69,6 +69,7 @@ async fn main() {
         .route("/api/records/:id", delete(handlers::records::delete_record))
         .route("/api/stats/calories", get(handlers::stats::calories_stats))
         .route("/api/stats/nutrients", get(handlers::stats::nutrients_stats))
+        .route("/api/stats/allergens", get(handlers::stats::allergens_stats))
         .nest_service("/uploads", ServeDir::new(&config.upload_dir))
         // axum のデフォルトボディ上限は 2MB。スマホ写真（数 MB）が弾かれるため、
         // ハンドラ側の 10MB チェックに合わせて余裕を持たせる（multipart のオーバーヘッド込み）。

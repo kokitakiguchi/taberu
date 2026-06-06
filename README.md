@@ -98,6 +98,7 @@ npm run dev
 | `DELETE` | `/api/records/:id` | 記録を削除。画像があれば物理削除も試行 |
 | `GET` | `/api/stats/calories` | カロリー統計。`period=week\|month` |
 | `GET` | `/api/stats/nutrients` | PFC 内訳。`date=YYYY-MM-DD` |
+| `GET` | `/api/stats/allergens` | アレルゲン集計。`period=week\|month`。ランキングと日別出現を返す |
 | `GET` | `/uploads/*` | アップロード画像を配信 |
 
 ### POST /api/records の主なフィールド

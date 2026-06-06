@@ -55,3 +55,21 @@ export interface UpdateRecordPayload {
   allergens?: string[] | null;
   notes?: string;
 }
+
+export interface AllergenRankItem {
+  name: string;
+  category: string | null;
+  count: number;
+}
+
+export interface AllergenDailyItem {
+  date: string;
+  allergens: string[];
+}
+
+export interface AllergensStats {
+  period: string;
+  days: number;
+  ranking: AllergenRankItem[];
+  daily: AllergenDailyItem[];
+}

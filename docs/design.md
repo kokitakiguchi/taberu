@@ -218,6 +218,34 @@ record を削除します。`image_path` があれば `UPLOAD_DIR` 配下のフ�
 }
 ```
 
+### GET /api/stats/allergens
+
+期間内のアレルゲンを集計して返します。`food_records.allergens`（JSONB 配列）を
+`jsonb_array_elements_text` で行展開し、`allergen_names` マスタと LEFT JOIN して
+`category` を付与します（マスタ外のアレルゲンは `category: null`）。
+
+| クエリ | 説明 |
+|--------|------|
+| `period=week` | 直近 7 日。省略時も week 扱い |
+| `period=month` | 直近 30 日 |
+
+- `ranking`: 期間内の出現回数が多い順。`count` は記録件数
+- `daily`: 出現があった日のみ、その日の重複なしアレルゲン配列（昇順）。出現ゼロ日の補完はフロント側で行う
+
+```json
+{
+  "period": "week",
+  "days": 7,
+  "ranking": [
+    { "name": "卵", "category": "特定原材料", "count": 5 },
+    { "name": "ごま", "category": null, "count": 2 }
+  ],
+  "daily": [
+    { "date": "2026-06-05", "allergens": ["小麦", "卵"] }
+  ]
+}
+```
+
 ## 画像保存
 
 `UPLOAD_DIR` は保存ベースディレクトリです。DB には `uploads/YYYYMMDD/user_1_YYYYMMDD_HHMMSS_xxxxxxxx.jpg` のような相対パスだけを保存します。
