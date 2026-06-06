@@ -24,6 +24,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    environment:
+      # コンテナ内から見た postgres のホスト名は compose のサービス名 `postgres`
+      # （localhost ではない）。cargo sqlx prepare はこの DATABASE_URL を参照する。
+      DATABASE_URL: postgres://postgres:postgres@postgres/taberu_db
     volumes:
       - ./:/work
     working_dir: /work
